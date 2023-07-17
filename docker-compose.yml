@@ -21,13 +21,19 @@ services:
     image: know-server
     ports:
       - "8085:80"
+    volumes:
+      # - ./server:/server
+      - ./files:/data/files
     environment:
       - FLASK_SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@pgvector:5432/know
       - FLASK_SESSION_TYPE=sqlalchemy
       - FLASK_PERMANENT_SESSION_LIFETIME=86400
-      - FLASK_SYSTEM_URL=https://baidu.com
-      - FLASK_OPENAI_API_KEY=xxxx
-      - FLASK_OPENAI_API_BASE=https://xxx.openai.azure.com/
-      - FLASK_OPENAI_API_VERSION=2023-03-15-preview
+      - FLASK_OPENAI_API_KEY=
+      - FLASK_OPENAI_API_BASE=https://xx.openai.azure.com/
       # - FLASK_OPENAI_API_PROXY=
+      - FLASK_OPENAI_API_VERSION=2023-03-15-preview
+      - FLASK_SYSTEM_LOGIN_URL=http://192.168.110.81:8085/api/code2session
+      - FLASK_SYSTEM_URL=http://192.168.110.81:8085/api/code2session
+      - FLASK_UPLOAD_PATH=/data/files
+      - FLASK_DOMAIN=http://192.168.110.81:8085
 

@@ -8,7 +8,8 @@ import threading
 from functools import partial
 from uuid import uuid4
 from time import time
-from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response
+from urllib.parse import quote
+from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response, send_file
 from app import app
 from models import (
     ObjID, User, Collection, Documents, Embedding,
@@ -27,6 +28,7 @@ from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
 
 
+class InternalError(Exception): pass
 class PermissionDenied(Exception): pass
 class NeedAuth(Exception): pass
 
@@ -132,7 +134,8 @@ def login_check():
     #     return redirect('/api/login?code={}'.format(code))
     code = request.args.get('code', default='', type=str)
     if not code:
-        return redirect('/login')
+        # 这里使用配置的站点的登录url
+        return redirect(app.config['SYSTEM_LOGIN_URL'])
 
     user_info = requests.get('{}?code={}'.format(
         app.config['SYSTEM_URL'], code,
@@ -147,14 +150,14 @@ def login_check():
     session['expired'] = expired
     session['openid'] = user.openid
     session['user_id'] = str(user.id)
+
+    # return redirect('/')
+    # 使用html进行跳转
     resp = make_response('<meta http-equiv="refresh" content="0;url=/">')
     resp.set_cookie("__sid__", session.sid, max_age=86400)
     app.logger.info("session %r", session)
-
     # 登录成功，返回前端首页
-
     return resp
-    # return redirect('/')
 
 
 @app.route('/api/access_token', methods=['GET'])
@@ -486,4 +489,20 @@ def openai_chat_on_collection(collection_id):
     })
 
 
+@app.route('/api/file/<filename>', methods=['GET'])
+def get_file(filename):
+    app.logger.info('filename %r', filename)
+    return send_file(app.config['UPLOAD_PATH'] + '/' + filename)
+
+
+@app.route('/api/upload', methods=['POST'])
+def upload():
+    # app.logger.info("file %r", request.files['file'])
+    if 'file' not in request.files:
+        raise InternalError()
+    file = request.files['file']
+    file.save(app.config['UPLOAD_PATH'] + '/' + file.filename)
+    return {
+        'url': app.config['DOMAIN'] + '/api/file/' + quote(file.filename) + '?__sid__=' + session.sid,
+    }
 
