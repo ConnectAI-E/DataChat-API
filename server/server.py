@@ -6,8 +6,11 @@ from routes import *
 
 @app.errorhandler(Exception)
 def api_exception(e):
-    import logging
     logging.exception(e)
+    if isinstance(e, PermissionDenied):
+        return jsonify({'code': -1, 'msg': str(e)}), 403
+    if isinstance(e, NeedAuth):
+        return jsonify({'code': -1, 'msg': str(e)}), 401
     return jsonify({'code': -1, 'msg': str(e)}), 500
 
 

@@ -27,8 +27,17 @@ from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
 
 
-def create_access_token(openid):
-    return session.sid, int(time() + 86400)
+class PermissionDenied(Exception): pass
+class NeedAuth(Exception): pass
+
+
+def create_access_token(user):
+    extra = user.extra
+    expires = extra.get('permission').get('expires', 0)
+    app.logger.debug("create_access_token %r expires %r time %r", user.extra, expires, time())
+    if expires > time():
+        return session.sid, int(expires)
+    raise PermissionDenied()
 
 
 @app.after_request
@@ -60,7 +69,7 @@ def before_request_callback():
     if access_token and user_id and expired > time():
         pass
     else:
-        raise Exception('auth required')
+        raise NeedAuth()
         # return jsonify({'code': -1, 'msg': 'auth required'})
 
 # 这里的几个页面是模拟接入站点的接口: /login, /api/code2session
@@ -79,15 +88,18 @@ def login_form():
     elif request.method == 'POST':
         name = request.form.get('name')
         passwd = request.form.get('passwd')
-        logging.info("debug %r", (name, passwd))
+        app.logger.info("debug %r", (name, passwd))
         # TODO 这里模拟登录，不校验用户名密码，只要能
         # TODO 后面需要完善注册登录逻辑
         user = {
             'name': name,
             'openid': base64.urlsafe_b64encode(name.encode()).decode(),
-            'privilege': {
-                'collection_size': 1,
-                'bot_size': 1,
+            'permission': {
+                'has_privilege': True,
+                'expires': time() + 100,
+                # TODO
+                # 'collection_size': 10,
+                # 'bot_size': 1,
             }
         }
         code = base64.b64encode(json.dumps(user).encode()).decode()
@@ -105,9 +117,8 @@ def home():
 def code2session():
     # 模拟客户的code2session接口
     code = request.args.get('code', default='', type=str)
-    logging.error("code %r", code)
     user = json.loads(base64.urlsafe_b64decode(code).decode())
-    logging.error('user %r', user)
+    app.logger.debug('user %r', user)
     return jsonify({'data': user})
 
 
@@ -129,7 +140,7 @@ def login_check():
     assert 'data' in user_info and 'openid' in user_info['data'], '获取用户信息失败'
     user = save_user(**user_info['data'])
 
-    access_token, expired = create_access_token(user.openid)
+    access_token, expired = create_access_token(user)
     # set session
     session['access_token'] = access_token
     session['expired'] = expired
@@ -160,7 +171,7 @@ def get_access_token():
     assert 'data' in user_info and 'openid' in user_info['data'], '获取用户信息失败'
     user = save_user(**user_info['data'])
 
-    access_token, expired = create_access_token(user.openid)
+    access_token, expired = create_access_token(user)
     # set session
     session['access_token'] = access_token
     session['expired'] = expired

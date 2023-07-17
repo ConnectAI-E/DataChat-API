@@ -139,9 +139,16 @@ def save_user(openid='', name='', **kwargs):
             id=ObjID.new_id(),
             openid=openid,
             name=name,
-            extra=json.dumps(kwargs),
+            extra=kwargs,
         )
         db.session.add(user)
+        db.session.commit()
+    else:
+        db.session.query(User).filter(User.id == user.id).update(dict(
+            openid=openid,
+            name=name,
+            extra=kwargs,
+        ), synchronize_session=False)
         db.session.commit()
     return user
 
