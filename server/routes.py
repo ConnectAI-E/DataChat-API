@@ -16,6 +16,9 @@ from models import (
     save_user,
     get_collections,
     get_collection_by_id,
+    get_collection_id_by_hash,
+    get_hash_by_collection_id,
+    get_data_by_hash,
     save_collection,
     update_collection_by_id,
     delete_collection_by_id,
@@ -23,6 +26,8 @@ from models import (
     remove_document_by_id,
     query_by_collection_id,
     chat_on_collection,
+    create_bot,
+    refresh_bot_by_collection,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -65,6 +70,9 @@ def before_request_callback():
         '/api/login', '/login', '/api/code2session',
         '/', '/favicon.ico',
     ]:
+        return
+    if '/embed' in request.path and '/chat/completions' in request.path:
+        # 这个接口不使用session校验，而是通过hash判断是否可用
         return
     access_token = session.get('access_token', '')
     expired = session.get('expired', 0)
@@ -431,9 +439,16 @@ def azure_chat_on_collection(collection_id, deployment_name):
 
 
 # https://api.openai.com/v1/chat/completions
+@app.route('/embed/<hash>/v1/chat/completions', methods=['POST'])
 @app.route('/api/collection/<collection_id>/v1/chat/completions', methods=['POST'])
 def openai_chat_on_collection(collection_id):
-    data = request.json
+    if '/embed' in request.path and '/chat/completions' in request.path:
+        # 这里使用hash判断是否有权限，并且
+        hash = collection_id
+        collection_id = get_collection_id_by_hash(hash)
+        data = get_data_by_hash(hash, request.json)
+    else:
+        data = request.json
     # user_id = session.get('user_id', '')
     # collection = get_collection_by_id(user_id, collection_id)
     # assert collection, '找不到知识库或者没有权限'
@@ -505,4 +520,38 @@ def upload():
     return {
         'url': app.config['DOMAIN'] + '/api/file/' + quote(file.filename) + '?__sid__=' + session.sid,
     }
+
+
+@app.route('/api/collection/<collection_id>/bot', methods=['GET'])
+def get_hash_by_collection_id_handler(collection_id):
+    hash = get_hash_by_collection_id(collection_id)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': hash,
+    })
+
+
+@app.route('/api/collection/<collection_id>/bot', methods=['POST'])
+def create_bot_handler(collection_id):
+    user_id = session.get('user_id', '')
+    hash = create_bot(user_id, collection_id, request.json)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': hash,
+    })
+
+
+@app.route('/api/collection/<collection_id>/bot', methods=['PUT'])
+def create_bot_handler(collection_id):
+    action = request.json.get('action', 'start')  # action=start/stop/remove
+    hash = refresh_bot_by_collection(collection_id)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': hash,
+    })
+
+
 

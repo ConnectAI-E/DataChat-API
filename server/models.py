@@ -1,6 +1,7 @@
 import logging
 import bson
 import json
+from uuid import uuid4
 from copy import deepcopy
 from datetime import datetime
 from sqlalchemy import String, text, select, and_
@@ -114,7 +115,6 @@ class Documents(db.Model):
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-
 class Embedding(db.Model):
     __tablename__ = 'embedding'
     id = db.Column(ObjID(12), primary_key=True)
@@ -124,6 +124,18 @@ class Embedding(db.Model):
     chunk_size = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片大小")
     document = db.Column(db.Text, nullable=True, comment="分片内容")
     embedding = db.Column(Vector, nullable=True, comment="分片向量")
+    status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
+    created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
+    modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Bot(db.Model):
+    __tablename__ = 'bot'
+    id = db.Column(ObjID(12), primary_key=True)
+    user_id = db.Column(ObjID(12), nullable=True, comment="用户ID")
+    collection_id = db.Column(ObjID(12), nullable=True, comment="知识库ID")
+    hash = db.Column(ObjID(12), nullable=True, comment="hash")
+    extra = db.Column(JSONStr(1024), nullable=True, server_default=text("'{}'"), comment="机器人配置信息")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -275,6 +287,60 @@ def save_embedding(collection_id, document_id, chunk_index, chunk_size, document
     ))
     db.session.commit()
     return eid
+
+
+def create_bot(user_id, collection_id, **extra):
+    if db.session.query(Bot.id).filter(
+        Bot.collection_id == collection_id,
+        Bot.status >= 0,
+    ).limit(1).scalar():
+        raise Exception('already create bot')
+    hash = str(uuid4())
+    db.session.add(Bot(
+        id=ObjID.new_id(),
+        user_id=user_id,
+        collection_id=collection_id,
+        hash=hash,
+        extra=extra,
+    ))
+    self.session.commit()
+    return hash
+
+
+def refresh_bot_by_collection(collection_id):
+    hash = str(uuid4())
+    db.session.query(Bot).filter(
+        Bot.collection_id == collection_id,
+        Bot.status >= 0,
+    ).update(dict(hash=hash), synchronize_session=False)
+    db.session.commit()
+    return hash
+
+
+def get_collection_id_by_hash(hash):
+    collection_id = db.session.query(Bot.collection_id).filter(
+        Bot.hash == hash,
+        Bot.status == 1,  # 这里是前端使用的，需要启用链接才能使用
+    ).limit(1).scalar()
+    return collection_id
+
+
+def get_hash_by_collection_id(collection_id):
+    hash = db.session.query(Bot.hash).filter(
+        Bot.collection_id == collection_id,
+        Bot.status >= 0,
+    ).limit(1).scalar()
+    return hash
+
+
+def get_data_by_hash(hash, json):
+    extra = db.session.query(Bot.extra).filter(
+        Bot.hash == hash,
+        Bot.status >= 0,
+    ).limit(1).scalar()
+    if extra:
+        json.update(extra)
+    return json
 
 
 class EmbeddingWithDocument(Embedding):
