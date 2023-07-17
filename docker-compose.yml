@@ -1,0 +1,33 @@
+version: '2'
+services:
+  pgvector:
+    restart: always
+    image: ankane/pgvector:v0.4.4
+    environment:
+      - LC_ALL=C.UTF-8
+      - POSTGRES_DB=know
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432"
+
+  redis:
+    restart: always
+    image: redis:alpine
+
+  know-server:
+    image: know-server
+    ports:
+      - "8085:80"
+    environment:
+      - FLASK_SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@pgvector:5432/know
+      - FLASK_SESSION_TYPE=sqlalchemy
+      - FLASK_PERMANENT_SESSION_LIFETIME=86400
+      - FLASK_SYSTEM_URL=https://baidu.com
+      - FLASK_OPENAI_API_KEY=xxxx
+      - FLASK_OPENAI_API_BASE=https://xxx.openai.azure.com/
+      - FLASK_OPENAI_API_VERSION=2023-03-15-preview
+      # - FLASK_OPENAI_API_PROXY=
+
