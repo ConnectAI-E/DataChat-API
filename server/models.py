@@ -307,14 +307,29 @@ def create_bot(user_id, collection_id, **extra):
     return hash
 
 
-def refresh_bot_by_collection(collection_id):
-    hash = str(uuid4())
-    db.session.query(Bot).filter(
-        Bot.collection_id == collection_id,
-        Bot.status >= 0,
-    ).update(dict(hash=hash), synchronize_session=False)
-    db.session.commit()
-    return hash
+def update_bot_by_collection_id_and_action(collection_id, action):
+    # action=start/stop/remove/refresh
+    if action == 'refresh':
+        hash = str(uuid4())
+        db.session.query(Bot).filter(
+            Bot.collection_id == collection_id,
+            Bot.status >= 0,
+        ).update(dict(hash=hash), synchronize_session=False)
+        db.session.commit()
+        return hash
+    else:
+        if 'start' == action:
+            status = 1
+        elif 'remove' == action:
+            status = -1
+        else:
+            status = 0
+        db.session.query(Bot).filter(
+            Bot.collection_id == collection_id,
+            Bot.status >= 0,
+        ).update(dict(status=status), synchronize_session=False)
+        db.session.commit()
+        return status
 
 
 def get_collection_id_by_hash(hash):

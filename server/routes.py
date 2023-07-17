@@ -27,7 +27,7 @@ from models import (
     query_by_collection_id,
     chat_on_collection,
     create_bot,
-    refresh_bot_by_collection,
+    update_bot_by_collection_id_and_action,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -545,8 +545,8 @@ def create_bot_handler(collection_id):
 
 @app.route('/api/collection/<collection_id>/bot', methods=['PUT'])
 def create_bot_handler(collection_id):
-    action = request.json.get('action', 'start')  # action=start/stop/remove
-    hash = refresh_bot_by_collection(collection_id)
+    action = request.json.get('action', 'start')  # action=start/stop/remove/refresh
+    hash = update_bot_by_collection_id_and_action(collection_id, action)
     return jsonify({
         'code': 0,
         'msg': 'success',
