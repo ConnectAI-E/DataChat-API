@@ -1,11 +1,14 @@
 import asyncio
+import logging
+import json
+import base64
 import queue
 import requests
 import threading
 from functools import partial
 from uuid import uuid4
 from time import time
-from flask import request, session, jsonify, Response, copy_current_request_context
+from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response
 from app import app
 from models import (
     ObjID, User, Collection, Documents, Embedding,
@@ -45,7 +48,11 @@ def after_request_callback(response):
 @app.before_request 
 def before_request_callback(): 
     request.environ['REQUEST_TIME'] = time()
-    if request.path in ['/api/access_token']:
+    if request.path in [
+        '/api/access_token',
+        '/api/login', '/login', '/api/code2session',
+        '/', '/favicon.ico',
+    ]:
         return
     access_token = session.get('access_token', '')
     expired = session.get('expired', 0)
@@ -55,6 +62,87 @@ def before_request_callback():
     else:
         raise Exception('auth required')
         # return jsonify({'code': -1, 'msg': 'auth required'})
+
+# 这里的几个页面是模拟接入站点的接口: /login, /api/code2session
+@app.route('/login', methods=['GET', 'POST'])
+def login_form():
+    # 模拟客户的登录页面，
+    if request.method == 'GET':
+        return '''
+<h1>登录</h1>
+<form action="/login" method="post">
+  <input name="name" /><br />
+  <input name="passwd" type="password" /><br />
+  <button type="submit">登录</button>
+</form>
+    '''
+    elif request.method == 'POST':
+        name = request.form.get('name')
+        passwd = request.form.get('passwd')
+        logging.info("debug %r", (name, passwd))
+        # TODO 这里模拟登录，不校验用户名密码，只要能
+        # TODO 后面需要完善注册登录逻辑
+        user = {
+            'name': name,
+            'openid': base64.urlsafe_b64encode(name.encode()).decode(),
+            'privilege': {
+                'collection_size': 1,
+                'bot_size': 1,
+            }
+        }
+        code = base64.b64encode(json.dumps(user).encode()).decode()
+        return redirect('/api/login?code={}'.format(code))
+
+@app.route('/favicon.ico', methods=['GET'])
+def faviconico():
+    return ''
+
+@app.route('/', methods=['GET'])
+def home():
+    return '<h1>首页</h1><a href="/api/login">登录</a>'
+
+@app.route('/api/code2session', methods=['GET'])
+def code2session():
+    # 模拟客户的code2session接口
+    code = request.args.get('code', default='', type=str)
+    logging.error("code %r", code)
+    user = json.loads(base64.urlsafe_b64decode(code).decode())
+    logging.error('user %r', user)
+    return jsonify({'data': user})
+
+
+# 以下是自己的url
+@app.route('/api/login', methods=['GET'])
+def login_check():
+    # 如果没有权限，
+    # user_id = session.get('user_id', '')
+    # if user_id:
+    #     return redirect('/api/login?code={}'.format(code))
+    code = request.args.get('code', default='', type=str)
+    if not code:
+        return redirect('/login')
+
+    user_info = requests.get('{}?code={}'.format(
+        app.config['SYSTEM_URL'], code,
+    )).json()
+
+    assert 'data' in user_info and 'openid' in user_info['data'], '获取用户信息失败'
+    user = save_user(**user_info['data'])
+
+    access_token, expired = create_access_token(user.openid)
+    # set session
+    session['access_token'] = access_token
+    session['expired'] = expired
+    session['openid'] = user.openid
+    session['user_id'] = str(user.id)
+    resp = make_response('<meta http-equiv="refresh" content="0;url=/">')
+    resp.set_cookie("__sid__", session.sid, max_age=86400)
+    app.logger.info("session %r", session)
+
+    # 登录成功，返回前端首页
+
+    return resp
+    # return redirect('/')
 
 
 @app.route('/api/access_token', methods=['GET'])

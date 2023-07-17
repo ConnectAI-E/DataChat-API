@@ -1,5 +1,6 @@
-FROM python:3.8 as runtime
+FROM python:3.8
 
+RUN echo "start"
 RUN sed -i "s@http://deb.debian.org@http://mirrors.aliyun.com@g" /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y libcurl4-openssl-dev libffi-dev libxml2-dev g++\
@@ -18,11 +19,6 @@ ADD ./web_base.py /usr/local/lib/python3.8/site-packages/langchain/document_load
 
 WORKDIR /server
 ENTRYPOINT ["/entrypoint.sh"]
-
-CMD ["gunicorn", "--worker-class=gevent", "--workers", "8", "--bind", "0.0.0.0:80", "-t", "600", "--keep-alive", "60", "--log-level=info", "server:app"]
-
-
-FROM runtime as builder
 
 RUN pip3 install Cython flask-cors -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
 

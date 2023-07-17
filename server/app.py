@@ -25,7 +25,8 @@ CORS(app, allow_headers=["Authorization", "X-Requested-With"], supports_credenti
 
 class SessionInterface(SqlAlchemySessionInterface):
     def open_session(self, app, request):
-        sid = request.headers.get('Authorization', '')[7:]
+        __sid__ = request.cookies.get('__sid__', '')
+        sid = __sid__ or request.headers.get('Authorization', '')[7:]
         if not sid:
             sid = self._generate_sid()
             return self.session_class(sid=sid, permanent=self.permanent)
