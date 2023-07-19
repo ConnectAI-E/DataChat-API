@@ -31,3 +31,8 @@ if __name__ == "__main__":
         register_vector(db.engine.raw_connection())
         db.create_all()
 
+
+if __name__ == "__main__":
+    from sys import argv
+    if len(argv) > 1:
+        app.run(port=80, host="0.0.0.0")

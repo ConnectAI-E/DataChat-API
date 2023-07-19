@@ -41,7 +41,7 @@ class NeedAuth(Exception): pass
 def create_access_token(user):
     extra = user.extra
     expires = extra.get('permission').get('expires', 0)
-    privilege = extra.get('permission').get('privilege', False)
+    privilege = extra.get('permission').get('has_privilege', False)
     app.logger.debug("create_access_token %r expires %r time %r", user.extra, expires, time())
     if privilege and expires > time():
         return session.sid, int(expires)
@@ -161,7 +161,7 @@ def login_check():
 
     # return redirect('/')
     # 使用html进行跳转
-    resp = make_response('<meta http-equiv="refresh" content="0;url=/">')
+    resp = make_response('<meta http-equiv="refresh" content="0;url={}/">'.format(app.config['DOMAIN']))
     resp.set_cookie("__sid__", session.sid, max_age=86400)
     app.logger.info("session %r", session)
     # 登录成功，返回前端首页
@@ -544,7 +544,7 @@ def create_bot_handler(collection_id):
 
 
 @app.route('/api/collection/<collection_id>/bot', methods=['PUT'])
-def create_bot_handler(collection_id):
+def update_bot_handler(collection_id):
     action = request.json.get('action', 'start')  # action=start/stop/remove/refresh
     hash = update_bot_by_collection_id_and_action(collection_id, action)
     return jsonify({
