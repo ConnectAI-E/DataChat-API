@@ -107,7 +107,7 @@ class Documents(db.Model):
     id = db.Column(ObjID(12), primary_key=True)
     collection_id = db.Column(ObjID(12), nullable=True, comment="知识库ID")
     type = db.Column(db.String(128), nullable=True, comment="文件类型")
-    name = db.Column(db.String(128), nullable=True, comment="文件名称")
+    name = db.Column(db.String(512), nullable=True, comment="文件名称")
     path = db.Column(db.String(512), nullable=True, comment="文件地址")
     chunks = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片数量")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
