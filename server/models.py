@@ -327,11 +327,12 @@ def get_bot_by_hash(hash):
 
 
 def create_bot(user_id, collection_id, **extra):
-    if db.session.query(Bot.id).filter(
-        Bot.collection_id == collection_id,
-        Bot.status >= 0,
-    ).limit(1).scalar():
-        raise Exception('already create bot')
+    # 移除这个逻辑
+    # if db.session.query(Bot.id).filter(
+    #     Bot.collection_id == collection_id,
+    #     Bot.status >= 0,
+    # ).limit(1).scalar():
+    #     raise Exception('already create bot')
     hash = str(uuid4())
     db.session.add(Bot(
         id=ObjID.new_id(),
@@ -344,13 +345,20 @@ def create_bot(user_id, collection_id, **extra):
     return hash
 
 
-def update_bot_by_collection_id_and_action(collection_id, action):
+def update_bot_by_collection_id_and_action(collection_id, action, hash=''):
+    if not collection_id and hash:
+        collection_id = db.query(Bot.id)
+
+    bot_id = db.session.query(Bot.id).filter(
+        Bot.collection_id == collection_id if collection_id else True,
+        Bot.hash == hash if hash else '',
+        Bot.status >= 0,
+    )
     # action=start/stop/remove/refresh
     if action == 'refresh':
         hash = str(uuid4())
         db.session.query(Bot).filter(
-            Bot.collection_id == collection_id,
-            Bot.status >= 0,
+            Bot.id == bot_id,
         ).update(dict(hash=hash), synchronize_session=False)
         db.session.commit()
         return hash
@@ -362,8 +370,7 @@ def update_bot_by_collection_id_and_action(collection_id, action):
         else:
             status = 0
         db.session.query(Bot).filter(
-            Bot.collection_id == collection_id,
-            Bot.status >= 0,
+            Bot.id == bot_id,
         ).update(dict(status=status), synchronize_session=False)
         db.session.commit()
         return status

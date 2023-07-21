@@ -604,15 +604,13 @@ def create_bot_handler(collection_id):
     })
 
 
-@app.route('/api/collection/<collection_id>/bot', methods=['PUT'])
-def update_bot_handler(collection_id):
+@app.route('/api/bot/<hash>', methods=['PUT'])
+def update_bot_handler(hash):
     action = request.json.get('action', 'start')  # action=start/stop/remove/refresh
-    hash = update_bot_by_collection_id_and_action(collection_id, action)
+    hash = update_bot_by_collection_id_and_action('', action, hash=hash)
     return jsonify({
         'code': 0,
         'msg': 'success',
         'data': hash,
     })
-
-
 
