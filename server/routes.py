@@ -27,6 +27,7 @@ from models import (
     remove_document_by_id,
     query_by_collection_id,
     chat_on_collection,
+    get_bot_list,
     create_bot,
     update_bot_by_collection_id_and_action,
 )
@@ -528,6 +529,20 @@ def upload():
     return {
         'url': app.config['DOMAIN'] + '/api/file/' + user_id + '/' + quote(file.filename) + '?__sid__=' + session.sid,
     }
+
+
+@app.route('/api/bot', methods=['GET'])
+def get_bot_list_handler():
+    page = request.args.get('page', default=1, type=int)
+    size = request.args.get('size', default=20, type=int)
+    user_id = session.get('user_id', '')
+    bots, total = get_bot_list(user_id, '', page, size)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': bots,
+        'total': total,
+    })
 
 
 @app.route('/api/collection/<collection_id>/bot', methods=['GET'])

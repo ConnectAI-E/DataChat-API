@@ -289,6 +289,20 @@ def save_embedding(collection_id, document_id, chunk_index, chunk_size, document
     return eid
 
 
+def get_bot_list(user_id, collection_id, page, size):
+    query = db.session.query(Bot).filter(
+        Bot.user_id == user_id,
+        Bot.collection_id == collection_id if collection_id else True,
+        Bot.status > -1,
+    ).order_by(
+        Bot.created.desc(),
+    )
+    total = query.count()
+    if total == 0:
+        return [], 0
+    return query_one_page(query, page, size), total
+
+
 def create_bot(user_id, collection_id, **extra):
     if db.session.query(Bot.id).filter(
         Bot.collection_id == collection_id,
