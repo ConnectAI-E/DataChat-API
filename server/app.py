@@ -27,7 +27,8 @@ class SessionInterface(SqlAlchemySessionInterface):
     def open_session(self, app, request):
         arg_sid = request.args.get('__sid__', default='', type=str)
         cookie_sid = request.cookies.get('__sid__', '')
-        sid = cookie_sid or arg_sid or request.headers.get('Authorization', '')[7:]
+        cookie_session = request.cookies.get('session', '')
+        sid = cookie_sid or cookie_session or arg_sid or request.headers.get('Authorization', '')[7:]
         if not sid:
             sid = self._generate_sid()
             return self.session_class(sid=sid, permanent=self.permanent)

@@ -1,3 +1,4 @@
+import so
 import asyncio
 import logging
 import json
@@ -77,8 +78,11 @@ def before_request_callback():
     access_token = session.get('access_token', '')
     expired = session.get('expired', 0)
     user_id = session.get('user_id', '')
-    if access_token and user_id and expired > time():
-        pass
+    if access_token and user_id:
+        if expired > time():
+            pass
+        else:
+            raise PermissionDenied()
     else:
         raise NeedAuth()
         # return jsonify({'code': -1, 'msg': 'auth required'})
@@ -114,7 +118,7 @@ def login_form():
             }
         }
         code = base64.b64encode(json.dumps(user).encode()).decode()
-        return redirect('/api/login?code={}'.format(code))
+        return redirect('{}/api/login?code={}'.format(app.config['DOMAIN'], code))
 
 @app.route('/favicon.ico', methods=['GET'])
 def faviconico():
@@ -504,10 +508,10 @@ def openai_chat_on_collection(collection_id):
     })
 
 
-@app.route('/api/file/<filename>', methods=['GET'])
-def get_file(filename):
+@app.route('/api/file/<user_id>/<filename>', methods=['GET'])
+def get_file(user_id, filename):
     app.logger.info('filename %r', filename)
-    return send_file(app.config['UPLOAD_PATH'] + '/' + filename)
+    return send_file(app.config['UPLOAD_PATH'] + '/' + user_id + '/' + filename)
 
 
 @app.route('/api/upload', methods=['POST'])
@@ -516,9 +520,13 @@ def upload():
     if 'file' not in request.files:
         raise InternalError()
     file = request.files['file']
-    file.save(app.config['UPLOAD_PATH'] + '/' + file.filename)
+    user_id = session.get('user_id', '')
+    directory = app.config['UPLOAD_PATH'] + '/' + user_id
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    file.save(directory + '/' + file.filename)
     return {
-        'url': app.config['DOMAIN'] + '/api/file/' + quote(file.filename) + '?__sid__=' + session.sid,
+        'url': app.config['DOMAIN'] + '/api/file/' + user_id + '/' + quote(file.filename) + '?__sid__=' + session.sid,
     }
 
 
