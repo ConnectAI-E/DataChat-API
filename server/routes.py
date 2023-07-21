@@ -1,4 +1,4 @@
-import so
+import os
 import asyncio
 import logging
 import json
@@ -523,11 +523,12 @@ def upload():
     file = request.files['file']
     user_id = session.get('user_id', '')
     directory = app.config['UPLOAD_PATH'] + '/' + user_id
+    filename = file.filename.replace('/', '_')
     if not os.path.exists(directory):
         os.makedirs(directory)
-    file.save(directory + '/' + file.filename)
+    file.save(directory + '/' + filename)
     return {
-        'url': app.config['DOMAIN'] + '/api/file/' + user_id + '/' + quote(file.filename) + '?__sid__=' + session.sid,
+        'url': app.config['DOMAIN'] + '/api/file/' + user_id + '/' + quote(filename) + '?__sid__=' + session.sid,
     }
 
 
