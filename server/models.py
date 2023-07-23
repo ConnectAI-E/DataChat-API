@@ -22,6 +22,9 @@ from langchain.callbacks import get_openai_callback
 from app import db, app
 
 
+class NotFound(Exception): pass
+
+
 class ObjID(db.LargeBinary):
     """基于bson.ObjectId用于mysql主键的自定义类型"""
     def bind_processor(self, dialect):
@@ -139,6 +142,16 @@ class Bot(db.Model):
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+def get_user(user_id):
+    user = db.session.query(User).filter(
+        User.user_id == user_id,
+        User.status == 0,
+    ).first()
+    if not user:
+        raise NotFound()
+    return user
 
 
 def save_user(openid='', name='', **kwargs):

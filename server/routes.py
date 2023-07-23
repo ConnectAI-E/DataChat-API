@@ -200,6 +200,16 @@ def get_access_token():
     return jsonify({'code': 0, 'msg': 'success', 'access_token': access_token, 'expired': expired})
 
 
+@app.route('/api/account', methods=['GET'])
+def get_account():
+    user = get_user(session.get('user_id', ''))
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': user,
+    })
+
+
 @app.route('/api/collection', methods=['GET'])
 def api_collections():
     page = request.args.get('page', default=1, type=int)
