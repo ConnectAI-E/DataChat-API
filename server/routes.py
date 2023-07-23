@@ -462,10 +462,9 @@ def azure_chat_on_collection(collection_id, deployment_name):
 # https://api.openai.com/v1/chat/completions
 @app.route('/embed/<hash>/v1/chat/completions', methods=['POST'])
 @app.route('/api/collection/<collection_id>/v1/chat/completions', methods=['POST'])
-def openai_chat_on_collection(collection_id):
-    if '/embed' in request.path and '/chat/completions' in request.path:
+def openai_chat_on_collection(collection_id='', hash=''):
+    if hash:
         # 这里使用hash判断是否有权限，并且
-        hash = collection_id
         collection_id = get_collection_id_by_hash(hash)
         data = get_data_by_hash(hash, request.json)
     else:

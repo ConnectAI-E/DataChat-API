@@ -391,7 +391,14 @@ def get_data_by_hash(hash, json):
         Bot.status >= 0,
     ).limit(1).scalar()
     if extra:
-        json.update(extra)
+        messages = json.get('messages', [])
+        if extra.get('prompt', ''):
+            messages = [{ 'role': 'system', 'content': prompt }] + messages
+        json.update(
+            model=extra.get('model', 'gpt-3.5-turbo'),
+            temperature=extra.get('temperature', 0.7),
+            messages=messages,
+        )
     return json
 
 
