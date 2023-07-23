@@ -393,7 +393,10 @@ def get_data_by_hash(hash, json):
     if extra:
         messages = json.get('messages', [])
         if extra.get('prompt', ''):
-            messages = [{ 'role': 'system', 'content': prompt }] + messages
+            messages = [{
+                'role': 'system',
+                'content': extra.get('prompt', '')
+            }] + messages
         json.update(
             model=extra.get('model', 'gpt-3.5-turbo'),
             temperature=extra.get('temperature', 0.7),
