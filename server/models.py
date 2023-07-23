@@ -146,7 +146,7 @@ class Bot(db.Model):
 
 def get_user(user_id):
     user = db.session.query(User).filter(
-        User.user_id == user_id,
+        User.id == user_id,
         User.status == 0,
     ).first()
     if not user:

@@ -14,6 +14,7 @@ from flask import request, session, jsonify, Response, copy_current_request_cont
 from app import app
 from models import (
     ObjID, User, Collection, Documents, Embedding,
+    get_user,
     save_user,
     get_collections,
     get_collection_by_id,
@@ -558,7 +559,7 @@ def get_bot_list_handler():
 
 
 @app.route('/api/bot/<hash>', methods=['GET'])
-def get_bot_by_hash_handler():
+def get_bot_by_hash_handler(hash):
     info = get_bot_by_hash(hash)
     return jsonify({
         'code': 0,
