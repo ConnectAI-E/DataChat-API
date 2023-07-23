@@ -207,7 +207,11 @@ def get_account():
     return jsonify({
         'code': 0,
         'msg': 'success',
-        'data': user,
+        'data': {
+            'id': user.id,
+            'name': user.name,
+            'openid': user.openid,
+        },
     })
 
 
