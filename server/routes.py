@@ -28,6 +28,7 @@ from models import (
     query_by_collection_id,
     chat_on_collection,
     get_bot_list,
+    get_bot_by_hash,
     create_bot,
     update_bot_by_collection_id_and_action,
 )
@@ -546,6 +547,16 @@ def get_bot_list_handler():
     })
 
 
+@app.route('/api/bot/<hash>', methods=['GET'])
+def get_bot_by_hash_handler():
+    info = get_bot_by_hash(hash)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': info,
+    })
+
+
 @app.route('/api/collection/<collection_id>/bot', methods=['GET'])
 def get_hash_by_collection_id_handler(collection_id):
     hash = get_hash_by_collection_id(collection_id)
@@ -559,7 +570,7 @@ def get_hash_by_collection_id_handler(collection_id):
 @app.route('/api/collection/<collection_id>/bot', methods=['POST'])
 def create_bot_handler(collection_id):
     user_id = session.get('user_id', '')
-    hash = create_bot(user_id, collection_id, request.json)
+    hash = create_bot(user_id, collection_id, **request.json)
     return jsonify({
         'code': 0,
         'msg': 'success',

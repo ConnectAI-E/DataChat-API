@@ -303,6 +303,16 @@ def get_bot_list(user_id, collection_id, page, size):
     return query_one_page(query, page, size), total
 
 
+def get_bot_by_hash(hash):
+    bot = db.session.query(Bot).filter(
+        Bot.hash == hash,
+        Bot.status == 1,
+    ).first()
+    if not bot:
+        raise NotFound()
+    return bot
+
+
 def create_bot(user_id, collection_id, **extra):
     if db.session.query(Bot.id).filter(
         Bot.collection_id == collection_id,
@@ -406,10 +416,9 @@ def query_by_collection_id(collection_id, q, page, size):
 
 
 class Retriever(BaseRetriever):
-    def __init__(self, collection_id, similarity=0.8, limit=4):
-        self.collection_id = collection_id
-        self.similarity = similarity
-        self.limit = limit
+    collection_id: str = ''
+    similarity: float = 0
+    limit: int = 4
 
     def get_relevant_documents(self, query: str):
         """Get texts relevant for a query.
@@ -449,7 +458,7 @@ def chat_on_collection(
     limit=4,
     messages=list(), **kwargs,
 ):
-    retriever = Retriever(collection_id, limit=limit)
+    retriever = Retriever(collection_id=collection_id, limit=limit)
     # TODO 这里需要一个简介的输出，可能需要调整模板
     system_template = """Use the following context to answer the user's question.
 -----------
