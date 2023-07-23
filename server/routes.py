@@ -557,18 +557,30 @@ def get_bot_list_handler():
     return jsonify({
         'code': 0,
         'msg': 'success',
-        'data': bots,
+        'data': [{
+            'bot_id': bot.id,
+            'user_id': bot.user_id,
+            'collection_id': bot.collection_id,
+            'hash': bot.hash,
+            'extra': bot.extra,
+        } for bot in bots],
         'total': total,
     })
 
 
 @app.route('/api/bot/<hash>', methods=['GET'])
 def get_bot_by_hash_handler(hash):
-    info = get_bot_by_hash(hash)
+    bot = get_bot_by_hash(hash)
     return jsonify({
         'code': 0,
         'msg': 'success',
-        'data': info,
+        'data': {
+            'bot_id': bot.id,
+            'user_id': bot.user_id,
+            'collection_id': bot.collection_id,
+            'hash': bot.hash,
+            'extra': bot.extra,
+        },
     })
 
 

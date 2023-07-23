@@ -137,7 +137,7 @@ class Bot(db.Model):
     id = db.Column(ObjID(12), primary_key=True)
     user_id = db.Column(ObjID(12), nullable=True, comment="用户ID")
     collection_id = db.Column(ObjID(12), nullable=True, comment="知识库ID")
-    hash = db.Column(ObjID(12), nullable=True, comment="hash")
+    hash = db.Column(String(128), nullable=True, comment="hash")
     extra = db.Column(JSONStr(1024), nullable=True, server_default=text("'{}'"), comment="机器人配置信息")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
@@ -340,7 +340,7 @@ def create_bot(user_id, collection_id, **extra):
         hash=hash,
         extra=extra,
     ))
-    self.session.commit()
+    db.session.commit()
     return hash
 
 
