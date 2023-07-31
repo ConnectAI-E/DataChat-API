@@ -28,7 +28,7 @@ services:
       - FLASK_SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@pgvector:5432/know
       - FLASK_SESSION_TYPE=sqlalchemy
       - FLASK_PERMANENT_SESSION_LIFETIME=86400
-      - FLASK_OPENAI_API_KEY=connectai-647f4a8455ea34000119328f
+      - FLASK_OPENAI_API_KEY=
       - FLASK_OPENAI_API_BASE=https://azure.forkway.cn
       # - FLASK_OPENAI_API_PROXY=
       - FLASK_OPENAI_API_VERSION=2023-03-15-preview
