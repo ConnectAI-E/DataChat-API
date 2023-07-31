@@ -319,7 +319,7 @@ def get_bot_list(user_id, collection_id, page, size):
 def get_bot_by_hash(hash):
     bot = db.session.query(Bot).filter(
         Bot.hash == hash,
-        Bot.status == 1,
+        # Bot.status == 1,
     ).first()
     if not bot:
         raise NotFound()
@@ -340,15 +340,13 @@ def create_bot(user_id, collection_id, **extra):
         collection_id=collection_id,
         hash=hash,
         extra=extra,
+        status=1,  # 启用
     ))
     db.session.commit()
     return hash
 
 
 def update_bot_by_collection_id_and_action(collection_id, action, hash=''):
-    if not collection_id and hash:
-        collection_id = db.query(Bot.id)
-
     bot_id = db.session.query(Bot.id).filter(
         Bot.collection_id == collection_id if collection_id else True,
         Bot.hash == hash if hash else '',

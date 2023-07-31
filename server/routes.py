@@ -577,6 +577,7 @@ def get_bot_by_hash_handler(hash):
             'bot_id': bot.id,
             'user_id': bot.user_id,
             'collection_id': bot.collection_id,
+            'status': bot.status,
             'hash': bot.hash,
             'extra': bot.extra,
         },
