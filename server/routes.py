@@ -229,6 +229,7 @@ def api_collections():
             'id': collection.id,
             'name': collection.name,
             'description': collection.description,
+            'document_count': collection.document_count,
             'created': int(collection.created.timestamp() * 1000),
         } for collection in collections],
         'total': total,

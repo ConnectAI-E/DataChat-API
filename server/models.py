@@ -187,8 +187,18 @@ def query_one_page(query, page, size):
     ).all()
 
 
+class CollectionWithDocumentCount(Collection):
+
+    document_count = column_property(
+        select(func.count(Documents.id)).where(and_(
+            Documents.collection_id == Collection.id,
+            Documents.status == 0,
+        ))
+    )
+
+
 def get_collections(user_id, page, size):
-    query = db.session.query(Collection).filter(
+    query = db.session.query(CollectionWithDocumentCount).filter(
         Collection.user_id == user_id,
         Collection.status == 0,
     )
