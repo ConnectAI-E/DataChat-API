@@ -69,7 +69,7 @@ def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, o
     if openai:
         embeddings = OpenAIEmbeddings()
     else:
-        embeddings = HuggingFaceEmbeddings(model_name="/all-MiniLM-L6-v2")
+        embeddings = HuggingFaceEmbeddings(model_name="/m3e-base")
     # 初始化加载器
     # text_splitter = CharacterTextSplitter(chunk_size=1024, chunk_overlap=0)
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -98,7 +98,7 @@ def embed_query(text, openai=False):
     if openai:
         embeddings = OpenAIEmbeddings()
     else:
-        embeddings = HuggingFaceEmbeddings(model_name="/all-MiniLM-L6-v2")
+        embeddings = HuggingFaceEmbeddings(model_name="/m3e-base")
 
     return embeddings.embed_query(text)
 
