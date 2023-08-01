@@ -9,7 +9,7 @@ import threading
 from functools import partial
 from uuid import uuid4
 from time import time
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response, send_file
 from app import app
 from models import (
@@ -337,6 +337,8 @@ def api_embed_documents(collection_id):
     user_id = session.get('user_id', '')
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到知识库或者没有权限'
+    if not fileName:
+        fileName = unquote(fileUrl.split('/').pop().split('?')[0])
     # isopenai=False
     task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False)
 
