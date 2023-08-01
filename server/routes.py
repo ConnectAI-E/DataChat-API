@@ -184,7 +184,8 @@ def get_access_token():
     else:
         # user_info = requests.get('{}/api/code2session?code={}'.format(
         user_info = requests.get('{}?code={}'.format(
-            app.config['SYSTEM_URL'], code,
+            # support using custom url
+            request.headers.get('X-System-Url', app.config['SYSTEM_URL']), code,
         )).json()
 
     assert 'data' in user_info and 'openid' in user_info['data'], '获取用户信息失败'
