@@ -12,7 +12,7 @@ ADD ./docker/entrypoint.sh /entrypoint.sh
 ADD ./docker/wait-for-it.sh /wait-for-it.sh
 RUN chmod a+x /entrypoint.sh
 
-ADD ./m3e-base /
+ADD ./m3e-base /m3e-base
 ADD ./punkt.tar.gz /usr/lib/nltk_data/tokenizers
 ADD ./averaged_perceptron_tagger.tar.gz /usr/lib/nltk_data/taggers
 ADD ./web_base.py /usr/local/lib/python3.8/site-packages/langchain/document_loaders/web_base.py
