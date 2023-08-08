@@ -1,5 +1,6 @@
 import os
 import requests
+from langchain.schema import Document
 from tasks import (
     celery,
     SitemapLoader, LOADER_MAPPING,
@@ -31,7 +32,8 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False):
             docs = loader.load()
             os.unlink(f.name)
             # 这里只有单个文件
-            document_id = embedding_single_document(docs[0], fileUrl, fileType, fileName, collection_id, openai=openai)
+            merged_doc = Document(page_content='\n'.join([d.page_content for d in docs]), metadata=docs[0].metadata)
+            document_id = embedding_single_document(merged_doc, fileUrl, fileType, fileName, collection_id, openai=openai)
             document_ids.append(document_id)
 
     return document_ids
