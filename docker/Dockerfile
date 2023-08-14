@@ -20,7 +20,7 @@ ADD ./web_base.py /usr/local/lib/python3.8/site-packages/langchain/document_load
 WORKDIR /server
 ENTRYPOINT ["/entrypoint.sh"]
 
-RUN pip3 install Cython flask-cors -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
+RUN pip3 install Cython flask-cors python-docx -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
 
 ADD ./setup.py /setup.py
 ADD ./server /server
