@@ -44,8 +44,9 @@ class NeedAuth(Exception): pass
 
 def create_access_token(user):
     extra = user.extra
-    expires = extra.get('permission').get('expires', 0)
-    privilege = extra.get('permission').get('has_privilege', False)
+    # 同时兼容<has_privilege, expires>和<active, exp_time>
+    expires = extra.get('permission').get('expires', extra.get('permission').get('exp_time', 0))
+    privilege = extra.get('permission').get('has_privilege', extra.get('permission').get('active', False))
     app.logger.debug("create_access_token %r expires %r time %r", user.extra, expires, time())
     if privilege and expires > time():
         return session.sid, int(expires)
