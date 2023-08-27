@@ -31,7 +31,7 @@ from models import (
     get_bot_list,
     get_bot_by_hash,
     create_bot,
-    update_bot_by_collection_id_and_action,
+    update_bot_by_hash,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -615,7 +615,7 @@ def create_bot_handler(collection_id):
 def update_bot_handler(hash):
     action = request.json.get('action', 'start')  # action=start/stop/remove/refresh
     collection_id = request.json.get('collection_id', '')  # 跟新机器人对应的知识库
-    hash = update_bot_by_collection_id_and_action('', action, hash=hash, collection_id=collection_id)
+    hash = update_bot_by_hash(action, hash=hash, collection_id=collection_id)
     return jsonify({
         'code': 0,
         'msg': 'success',

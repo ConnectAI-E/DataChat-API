@@ -361,9 +361,8 @@ def create_bot(user_id, collection_id, **extra):
     return hash
 
 
-def update_bot_by_collection_id_and_action(collection_id, action, hash='', collection_id=''):
+def update_bot_by_hash(collection_id, action, hash='', collection_id=''):
     bot_id = db.session.query(Bot.id).filter(
-        Bot.collection_id == collection_id if collection_id else True,
         Bot.hash == hash if hash else '',
         Bot.status >= 0,
     )
