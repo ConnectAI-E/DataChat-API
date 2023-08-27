@@ -251,7 +251,7 @@ def delete_collection_by_id(user_id, collection_id):
     db.session.query(Bot).filter(
         Bot.collection_id == collection_id,
     ).update(dict(
-        collection_id=None,
+        collection_id='',
     ), synchronize_session=False)
     db.session.commit()
 
