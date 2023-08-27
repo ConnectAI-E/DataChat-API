@@ -393,7 +393,7 @@ def update_bot_by_hash(action, hash='', collection_id=''):
             collection_id=collection_id,
         ), synchronize_session=False)
         db.session.commit()
-        return bot_id
+        return True
 
 
 def get_collection_id_by_hash(hash):
