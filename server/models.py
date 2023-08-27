@@ -361,7 +361,7 @@ def create_bot(user_id, collection_id, **extra):
     return hash
 
 
-def update_bot_by_collection_id_and_action(collection_id, action, hash=''):
+def update_bot_by_collection_id_and_action(collection_id, action, hash='', collection_id=''):
     bot_id = db.session.query(Bot.id).filter(
         Bot.collection_id == collection_id if collection_id else True,
         Bot.hash == hash if hash else '',
@@ -375,7 +375,7 @@ def update_bot_by_collection_id_and_action(collection_id, action, hash=''):
         ).update(dict(hash=hash), synchronize_session=False)
         db.session.commit()
         return hash
-    else:
+    elif action:
         if 'start' == action:
             status = 1
         elif 'remove' == action:
@@ -387,6 +387,14 @@ def update_bot_by_collection_id_and_action(collection_id, action, hash=''):
         ).update(dict(status=status), synchronize_session=False)
         db.session.commit()
         return status
+    elif collection_id:
+        db.session.query(Bot).filter(
+            Bot.id == bot_id,
+        ).update(dict(
+            collection_id=collection_id,
+        ), synchronize_session=False)
+        db.session.commit()
+        return bot_id
 
 
 def get_collection_id_by_hash(hash):

@@ -614,7 +614,8 @@ def create_bot_handler(collection_id):
 @app.route('/api/bot/<hash>', methods=['PUT'])
 def update_bot_handler(hash):
     action = request.json.get('action', 'start')  # action=start/stop/remove/refresh
-    hash = update_bot_by_collection_id_and_action('', action, hash=hash)
+    collection_id = request.json.get('collection_id', '')  # 跟新机器人对应的知识库
+    hash = update_bot_by_collection_id_and_action('', action, hash=hash, collection_id=collection_id)
     return jsonify({
         'code': 0,
         'msg': 'success',
