@@ -157,23 +157,27 @@ def login_check():
         app.config['SYSTEM_URL'], code,
     )).json()
 
-    assert 'data' in user_info and 'openid' in user_info['data'], '获取用户信息失败'
-    user = save_user(**user_info['data'])
+    try:
+        assert 'data' in user_info and 'openid' in user_info['data'], '获取用户信息失败'
+        user = save_user(**user_info['data'])
 
-    access_token, expired = create_access_token(user)
-    # set session
-    session['access_token'] = access_token
-    session['expired'] = expired
-    session['openid'] = user.openid
-    session['user_id'] = str(user.id)
+        access_token, expired = create_access_token(user)
+        # set session
+        session['access_token'] = access_token
+        session['expired'] = expired
+        session['openid'] = user.openid
+        session['user_id'] = str(user.id)
 
-    # return redirect('/')
-    # 使用html进行跳转
-    resp = make_response('<meta http-equiv="refresh" content="0;url={}/">'.format(app.config['DOMAIN']))
-    resp.set_cookie("__sid__", session.sid, max_age=86400)
-    app.logger.info("session %r", session)
-    # 登录成功，返回前端首页
-    return resp
+        # return redirect('/')
+        # 使用html进行跳转
+        resp = make_response('<meta http-equiv="refresh" content="0;url={}/">'.format(app.config['DOMAIN']))
+        resp.set_cookie("__sid__", session.sid, max_age=86400)
+        app.logger.info("session %r", session)
+        # 登录成功，返回前端首页
+        return resp
+    except Exception as e:
+        app.logger.error(e)
+        return make_response('<h1>无访问权限</h1>')
 
 
 @app.route('/api/access_token', methods=['GET'])
