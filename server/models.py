@@ -361,7 +361,9 @@ def create_bot(user_id, collection_id, **extra):
     return hash
 
 
-def update_bot_by_hash(action, hash='', collection_id=''):
+def update_bot_by_hash(hash, action='', collection_id='', **extra):
+    # 如果是action，可以只传一个参数。
+    # 更新的时候和前面的创建接口使用类似的参数。
     bot_id = db.session.query(Bot.id).filter(
         Bot.hash == hash if hash else '',
         Bot.status >= 0,
@@ -391,6 +393,7 @@ def update_bot_by_hash(action, hash='', collection_id=''):
             Bot.id == bot_id,
         ).update(dict(
             collection_id=collection_id,
+            extra=extra,
         ), synchronize_session=False)
         db.session.commit()
         return True
