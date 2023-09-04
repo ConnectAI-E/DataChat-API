@@ -45,8 +45,8 @@ class NeedAuth(Exception): pass
 def create_access_token(user):
     extra = user.extra
     # 同时兼容<has_privilege, expires>和<active, exp_time>
-    expires = extra.get('permission').get('expires', extra.get('permission').get('exp_time', 0))
-    privilege = extra.get('permission').get('has_privilege', extra.get('permission').get('active', False))
+    expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
+    privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
     app.logger.debug("create_access_token %r expires %r time %r", user.extra, expires, time())
     if privilege and expires > time():
         return session.sid, int(expires)
@@ -475,6 +475,8 @@ def openai_chat_on_collection(collection_id='', hash=''):
     if hash:
         # 这里使用hash判断是否有权限，并且
         collection_id = get_collection_id_by_hash(hash)
+        if not collection_id:
+            raise PermissionDenied()
         data = get_data_by_hash(hash, request.json)
     else:
         data = request.json

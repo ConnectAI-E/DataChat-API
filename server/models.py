@@ -400,11 +400,22 @@ def update_bot_by_hash(hash, action='', collection_id='', **extra):
 
 
 def get_collection_id_by_hash(hash):
-    collection_id = db.session.query(Bot.collection_id).filter(
+    bot = db.session.query(Bot).filter(
         Bot.hash == hash,
         Bot.status == 1,  # 这里是前端使用的，需要启用链接才能使用
-    ).limit(1).scalar()
-    return collection_id
+    ).first()
+    if bot:
+        # 校验当前用户的权限是否正常
+        user = db.session.query(User).filter(
+            User.id == bot.user_id,
+        ).first()
+        if user:
+            extra = user.extra
+            expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
+            privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
+            if privilege and expires > time():
+                return bot.collection_id
+    return None
 
 
 def get_hash_by_collection_id(collection_id):
