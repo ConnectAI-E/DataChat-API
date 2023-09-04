@@ -1,6 +1,7 @@
 import logging
 import bson
 import json
+from time import time
 from uuid import uuid4
 from copy import deepcopy
 from datetime import datetime
@@ -413,7 +414,7 @@ def get_collection_id_by_hash(hash):
             extra = user.extra
             expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
             privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
-            if privilege and expires > time():
+            if privilege and int(expires or 0) > time():
                 return bot.collection_id
     return None
 
