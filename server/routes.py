@@ -32,6 +32,8 @@ from models import (
     get_bot_by_hash,
     create_bot,
     update_bot_by_hash,
+    query_by_document_id,
+    purge_document_by_id,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -399,6 +401,33 @@ def api_query_by_collection_id(collection_id):
         } for document, distance in documents],
         'total': total,
     })
+
+
+@app.route('/api/document/<document_id>/query', methods=['GET'])
+def api_query_by_document_id(document_id):
+    q = request.args.get('q', default='', type=str)
+    page = request.args.get('page', default=1, type=int)
+    size = request.args.get('size', default=20, type=int)
+    user_id = session.get('user_id', '')
+    documents, total = query_by_document_id(document_id, q, page, size)
+
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': [{
+            'document_id': document.document_id,
+            'document_name': document.document_name,
+            'document': document.document,
+            'distance': distance,
+        } for document, distance in documents],
+        'total': total,
+    })
+
+
+@app.route('/api/document/<document_id>', methods=['DELETE'])
+def api_purge_document_by_id(document_id):
+    purge_document_by_id(document_id)
+    return jsonify({'code': 0, 'msg': 'success'})
 
 
 class ThreadTask(threading.Thread):

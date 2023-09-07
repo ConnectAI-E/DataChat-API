@@ -288,6 +288,16 @@ def remove_document_by_id(user_id, collection_id, document_id):
     db.session.commit()
 
 
+def purge_document_by_id(document_id):
+    db.session.query(Documents).filter(
+        Documents.id == document_id,
+    ).delete()
+    db.session.query(Embedding).filter(
+        Embedding.document_id == document_id,
+    ).delete()
+    db.session.commit()
+
+
 def save_document(collection_id, name, url, chunks, type):
     did = ObjID.new_id()
     db.session.add(Documents(
@@ -478,6 +488,28 @@ def query_by_collection_id(collection_id, q, page, size):
         return [], 0
     return query_one_page(query, page, size), total
 
+
+def query_by_document_id(document_id, q, page, size):
+    from tasks import embed_query
+    embed = embed_query(q)
+    # Embedding.embedding.l2_distance(embed),
+    # Embedding.embedding.max_inner_product(embed),
+    column = Embedding.embedding.cosine_distance(embed)
+    # column = Embedding.embedding.l2_distance(embed)
+    # column = Embedding.embedding.max_inner_product(embed)
+    query = db.session.query(
+        EmbeddingWithDocument,
+        column.label('distinct'),
+    ).filter(
+        Embedding.document_id == document_id,
+        Embedding.status == 0,
+    ).order_by(
+        column,
+    )
+    total = query.count()
+    if total == 0:
+        return [], 0
+    return query_one_page(query, page, size), total
 
 
 class Retriever(BaseRetriever):
