@@ -341,13 +341,27 @@ def api_embed_documents(collection_id):
     fileName = request.json.get('fileName')
     fileUrl = request.json.get('fileUrl')
     fileType = request.json.get('fileType')
+    uniqid = request.json.get('uniqid')
     user_id = session.get('user_id', '')
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到知识库或者没有权限'
     if not fileName:
         fileName = unquote(fileUrl.split('/').pop().split('?')[0])
+    # 增加额外的单个知识库去重处理(documents.collection_id，一个文档只能在单个知识库存在)
+    # 只有主动传了这个参数，才会去重，否则走之前的逻辑不去重，免得有的旧版本出问题
+    if uniqid:
+        document_id = get_document_id_by_uniqid(collection_id, uniqid)
+        if document_id and len(document_id) > 0:
+            return jsonify({
+                'code': 0,
+                'msg': 'success',
+                'data': {
+                    'document_id': document_id,
+                },
+            })
+
     # isopenai=False
-    task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False)
+    task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
 
     return jsonify({
         'code': 0,

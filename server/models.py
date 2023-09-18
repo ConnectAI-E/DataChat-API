@@ -114,6 +114,7 @@ class Documents(db.Model):
     name = db.Column(db.String(512), nullable=True, comment="文件名称")
     path = db.Column(db.String(512), nullable=True, comment="文件地址")
     chunks = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片数量")
+    uniqid = db.Column(db.String(128), nullable=True, comment="唯一ID")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -257,6 +258,14 @@ def delete_collection_by_id(user_id, collection_id):
     db.session.commit()
 
 
+def get_document_id_by_uniqid(collection_id, uniqid):
+    return [did for did, in db.session.query(Documents.id).filter(
+        Documents.collection_id == collection_id,
+        Documents.uniqid == uniqid,
+        Documents.status == 0,
+    )]
+
+
 def get_documents_by_collection_id(user_id, collection_id, page, size):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
@@ -298,7 +307,7 @@ def purge_document_by_id(document_id):
     db.session.commit()
 
 
-def save_document(collection_id, name, url, chunks, type):
+def save_document(collection_id, name, url, chunks, type, uniqid=None):
     did = ObjID.new_id()
     db.session.add(Documents(
         id=did,
@@ -307,6 +316,7 @@ def save_document(collection_id, name, url, chunks, type):
         name=name,
         path=url,
         chunks=chunks,
+        uniqid=uniqid,
     ))
     db.session.commit()
     return did
