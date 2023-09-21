@@ -423,7 +423,10 @@ def api_query_by_document_id(document_id):
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
     user_id = session.get('user_id', '')
-    documents, total = query_by_document_id(document_id, q, page, size)
+    if q:
+        documents, total = query_by_document_id(document_id, q, page, size)
+    else:
+        documents, total = get_docs_by_document_id(document_id, page, size)
 
     return jsonify({
         'code': 0,

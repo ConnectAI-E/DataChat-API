@@ -499,6 +499,21 @@ def query_by_collection_id(collection_id, q, page, size):
     return query_one_page(query, page, size), total
 
 
+def get_docs_by_document_id(document_id):
+    query = db.session.query(
+        EmbeddingWithDocument,
+        # 这里始终是0，只是为了和后面的query_by_document_id保持结构兼容
+        Embedding.status,
+    ).filter(
+        Embedding.document_id == document_id,
+        Embedding.status == 0,
+    ).all()
+    total = query.count()
+    if total == 0:
+        return [], 0
+    return query_one_page(query, page, size), total
+
+
 def query_by_document_id(document_id, q, page, size):
     from tasks import embed_query
     embed = embed_query(q)
