@@ -34,6 +34,8 @@ from models import (
     update_bot_by_hash,
     query_by_document_id,
     purge_document_by_id,
+    get_docs_by_document_id,
+    set_document_summary,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -444,6 +446,13 @@ def api_query_by_document_id(document_id):
 @app.route('/api/document/<document_id>', methods=['DELETE'])
 def api_purge_document_by_id(document_id):
     purge_document_by_id(document_id)
+    return jsonify({'code': 0, 'msg': 'success'})
+
+
+@app.route('/api/document/<document_id>', methods=['POST'])
+def api_set_document_summary(document_id):
+    summary = request.json.get('summary')
+    set_document_summary(document_id, summary)
     return jsonify({'code': 0, 'msg': 'success'})
 
 

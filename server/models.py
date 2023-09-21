@@ -101,6 +101,7 @@ class Collection(db.Model):
     user_id = db.Column(ObjID(12), nullable=True, comment="用户ID")
     name = db.Column(db.String(128), nullable=True, comment="知识库名称")
     description = db.Column(db.String(512), nullable=True, comment="知识库描述")
+    summary = db.Column(db.String(2048), nullable=True, comment="知识库摘要")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -115,6 +116,7 @@ class Documents(db.Model):
     path = db.Column(db.String(512), nullable=True, comment="文件地址")
     chunks = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片数量")
     uniqid = db.Column(db.String(128), nullable=True, comment="唯一ID")
+    summary = db.Column(db.String(2048), nullable=True, comment="文档摘要")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -304,6 +306,13 @@ def purge_document_by_id(document_id):
     db.session.query(Embedding).filter(
         Embedding.document_id == document_id,
     ).delete()
+    db.session.commit()
+
+
+def set_document_summary(document_id, summary):
+    db.session.query(Documents).filter(
+        Documents.id == document_id,
+    ).update(summary=summary)
     db.session.commit()
 
 
