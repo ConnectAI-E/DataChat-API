@@ -502,12 +502,14 @@ def query_by_collection_id(collection_id, q, page, size):
 def get_docs_by_document_id(document_id):
     query = db.session.query(
         EmbeddingWithDocument,
-        # 这里始终是0，只是为了和后面的query_by_document_id保持结构兼容
-        Embedding.status,
+        # 这里是为了和后面的query_by_document_id保持结构兼容
+        Embedding.chunk_index,
     ).filter(
         Embedding.document_id == document_id,
         Embedding.status == 0,
-    ).all()
+    ).order_by(
+        Embedding.chunk_index.asc(),
+    )
     total = query.count()
     if total == 0:
         return [], 0
