@@ -227,6 +227,7 @@ def save_collection(user_id, name, description):
         user_id=user_id,
         name=name,
         description=description,
+        summary='',
     ))
     db.session.commit()
     return collection_id
@@ -312,8 +313,14 @@ def purge_document_by_id(document_id):
 def set_document_summary(document_id, summary):
     db.session.query(Documents).filter(
         Documents.id == document_id,
-    ).update(summary=summary)
+    ).update(dict(summary=summary))
     db.session.commit()
+
+
+def get_document_by_id(document_id):
+    return db.session.query(Documents).filter(
+        Documents.id == document_id,
+    ).first()
 
 
 def save_document(collection_id, name, url, chunks, type, uniqid=None):
@@ -326,6 +333,7 @@ def save_document(collection_id, name, url, chunks, type, uniqid=None):
         path=url,
         chunks=chunks,
         uniqid=uniqid,
+        summary='',
     ))
     db.session.commit()
     return did
@@ -508,7 +516,7 @@ def query_by_collection_id(collection_id, q, page, size):
     return query_one_page(query, page, size), total
 
 
-def get_docs_by_document_id(document_id):
+def get_docs_by_document_id(document_id, page, size):
     query = db.session.query(
         EmbeddingWithDocument,
         # 这里是为了和后面的query_by_document_id保持结构兼容

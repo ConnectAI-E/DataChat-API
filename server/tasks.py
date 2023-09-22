@@ -64,7 +64,7 @@ LOADER_MAPPING = {
 }
 
 
-def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=False, uniqid=uniqid):
+def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=False, uniqid=''):
     # 初始化embeddings
     if openai:
         embeddings = OpenAIEmbeddings()

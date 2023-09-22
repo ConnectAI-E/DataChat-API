@@ -1,5 +1,6 @@
 import os
 import requests
+from hashlib import md5
 from langchain.schema import Document
 from tasks import (
     celery,
@@ -13,7 +14,7 @@ from tasks import (
 def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, uniqid=None):
     # 从一个url获取文档，并且向量化
     # assert fileType in ['pdf', 'word', 'excel', 'markdown', 'ppt', 'txt', 'sitemap']
-    uniqid = uniqid or md5(fileUrl).hexdigest()
+    uniqid = uniqid or md5(fileUrl.encode()).hexdigest()
     document_ids = []
 
     if fileType == 'sitemap':

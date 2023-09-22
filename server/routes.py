@@ -34,8 +34,10 @@ from models import (
     update_bot_by_hash,
     query_by_document_id,
     purge_document_by_id,
+    get_document_id_by_uniqid,
     get_docs_by_document_id,
     set_document_summary,
+    get_document_by_id,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -414,6 +416,7 @@ def api_query_by_collection_id(collection_id):
             'document_name': document.document_name,
             'document': document.document,
             'distance': distance,
+            'collection_id': collection_id,
         } for document, distance in documents],
         'total': total,
     })
@@ -454,6 +457,23 @@ def api_set_document_summary(document_id):
     summary = request.json.get('summary')
     set_document_summary(document_id, summary)
     return jsonify({'code': 0, 'msg': 'success'})
+
+
+@app.route('/api/document/<document_id>', methods=['GET'])
+def api_get_document(document_id):
+    document = get_document_by_id(document_id)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': {
+            'id': document.id,
+            'name': document.name,
+            'type': document.type,
+            'chunks': document.chunks,
+            'uniqid': document.uniqid,
+            'summary': document.summary,
+        }
+    })
 
 
 class ThreadTask(threading.Thread):
