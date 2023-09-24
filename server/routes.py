@@ -32,6 +32,12 @@ from models import (
     get_bot_by_hash,
     create_bot,
     update_bot_by_hash,
+    query_by_document_id,
+    purge_document_by_id,
+    get_document_id_by_uniqid,
+    get_docs_by_document_id,
+    set_document_summary,
+    get_document_by_id,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -339,13 +345,27 @@ def api_embed_documents(collection_id):
     fileName = request.json.get('fileName')
     fileUrl = request.json.get('fileUrl')
     fileType = request.json.get('fileType')
+    uniqid = request.json.get('uniqid')
     user_id = session.get('user_id', '')
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到知识库或者没有权限'
     if not fileName:
         fileName = unquote(fileUrl.split('/').pop().split('?')[0])
+    # 增加额外的单个知识库去重处理(documents.collection_id，一个文档只能在单个知识库存在)
+    # 只有主动传了这个参数，才会去重，否则走之前的逻辑不去重，免得有的旧版本出问题
+    if uniqid:
+        document_id = get_document_id_by_uniqid(collection_id, uniqid)
+        if document_id and len(document_id) > 0:
+            return jsonify({
+                'code': 0,
+                'msg': 'success',
+                'data': {
+                    'document_id': document_id,
+                },
+            })
+
     # isopenai=False
-    task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False)
+    task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
 
     return jsonify({
         'code': 0,
@@ -396,8 +416,63 @@ def api_query_by_collection_id(collection_id):
             'document_name': document.document_name,
             'document': document.document,
             'distance': distance,
+            'collection_id': collection_id,
         } for document, distance in documents],
         'total': total,
+    })
+
+
+@app.route('/api/document/<document_id>/query', methods=['GET'])
+def api_query_by_document_id(document_id):
+    q = request.args.get('q', default='', type=str)
+    page = request.args.get('page', default=1, type=int)
+    size = request.args.get('size', default=20, type=int)
+    user_id = session.get('user_id', '')
+    if q:
+        documents, total = query_by_document_id(document_id, q, page, size)
+    else:
+        documents, total = get_docs_by_document_id(document_id, page, size)
+
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': [{
+            'document_id': document.document_id,
+            'document_name': document.document_name,
+            'document': document.document,
+            'distance': distance,
+        } for document, distance in documents],
+        'total': total,
+    })
+
+
+@app.route('/api/document/<document_id>', methods=['DELETE'])
+def api_purge_document_by_id(document_id):
+    purge_document_by_id(document_id)
+    return jsonify({'code': 0, 'msg': 'success'})
+
+
+@app.route('/api/document/<document_id>', methods=['POST'])
+def api_set_document_summary(document_id):
+    summary = request.json.get('summary')
+    set_document_summary(document_id, summary)
+    return jsonify({'code': 0, 'msg': 'success'})
+
+
+@app.route('/api/document/<document_id>', methods=['GET'])
+def api_get_document(document_id):
+    document = get_document_by_id(document_id)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': {
+            'id': document.id,
+            'name': document.name,
+            'type': document.type,
+            'chunks': document.chunks,
+            'uniqid': document.uniqid,
+            'summary': document.summary,
+        }
     })
 
 

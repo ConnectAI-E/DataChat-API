@@ -64,7 +64,7 @@ LOADER_MAPPING = {
 }
 
 
-def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=False):
+def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=False, uniqid=''):
     # 初始化embeddings
     if openai:
         embeddings = OpenAIEmbeddings()
@@ -76,7 +76,7 @@ def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, o
 
     split_docs = text_splitter.split_documents([doc])
     # 保存documents
-    document_id = save_document(collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType)
+    document_id = save_document(collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType, uniqid=uniqid)
     # document_ids.append(document_id)
     doc_result = embeddings.embed_documents([d.page_content for d in split_docs])
     for chunk_index, doc in enumerate(split_docs):

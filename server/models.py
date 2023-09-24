@@ -101,6 +101,7 @@ class Collection(db.Model):
     user_id = db.Column(ObjID(12), nullable=True, comment="用户ID")
     name = db.Column(db.String(128), nullable=True, comment="知识库名称")
     description = db.Column(db.String(512), nullable=True, comment="知识库描述")
+    summary = db.Column(db.String(2048), nullable=True, comment="知识库摘要")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -114,6 +115,8 @@ class Documents(db.Model):
     name = db.Column(db.String(512), nullable=True, comment="文件名称")
     path = db.Column(db.String(512), nullable=True, comment="文件地址")
     chunks = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片数量")
+    uniqid = db.Column(db.String(128), nullable=True, comment="唯一ID")
+    summary = db.Column(db.String(2048), nullable=True, comment="文档摘要")
     status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
     created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
     modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -224,6 +227,7 @@ def save_collection(user_id, name, description):
         user_id=user_id,
         name=name,
         description=description,
+        summary='',
     ))
     db.session.commit()
     return collection_id
@@ -257,6 +261,14 @@ def delete_collection_by_id(user_id, collection_id):
     db.session.commit()
 
 
+def get_document_id_by_uniqid(collection_id, uniqid):
+    return [did for did, in db.session.query(Documents.id).filter(
+        Documents.collection_id == collection_id,
+        Documents.uniqid == uniqid,
+        Documents.status == 0,
+    )]
+
+
 def get_documents_by_collection_id(user_id, collection_id, page, size):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
@@ -288,7 +300,30 @@ def remove_document_by_id(user_id, collection_id, document_id):
     db.session.commit()
 
 
-def save_document(collection_id, name, url, chunks, type):
+def purge_document_by_id(document_id):
+    db.session.query(Documents).filter(
+        Documents.id == document_id,
+    ).delete()
+    db.session.query(Embedding).filter(
+        Embedding.document_id == document_id,
+    ).delete()
+    db.session.commit()
+
+
+def set_document_summary(document_id, summary):
+    db.session.query(Documents).filter(
+        Documents.id == document_id,
+    ).update(dict(summary=summary))
+    db.session.commit()
+
+
+def get_document_by_id(document_id):
+    return db.session.query(Documents).filter(
+        Documents.id == document_id,
+    ).first()
+
+
+def save_document(collection_id, name, url, chunks, type, uniqid=None):
     did = ObjID.new_id()
     db.session.add(Documents(
         id=did,
@@ -297,6 +332,8 @@ def save_document(collection_id, name, url, chunks, type):
         name=name,
         path=url,
         chunks=chunks,
+        uniqid=uniqid,
+        summary='',
     ))
     db.session.commit()
     return did
@@ -478,6 +515,45 @@ def query_by_collection_id(collection_id, q, page, size):
         return [], 0
     return query_one_page(query, page, size), total
 
+
+def get_docs_by_document_id(document_id, page, size):
+    query = db.session.query(
+        EmbeddingWithDocument,
+        # 这里是为了和后面的query_by_document_id保持结构兼容
+        Embedding.chunk_index,
+    ).filter(
+        Embedding.document_id == document_id,
+        Embedding.status == 0,
+    ).order_by(
+        Embedding.chunk_index.asc(),
+    )
+    total = query.count()
+    if total == 0:
+        return [], 0
+    return query_one_page(query, page, size), total
+
+
+def query_by_document_id(document_id, q, page, size):
+    from tasks import embed_query
+    embed = embed_query(q)
+    # Embedding.embedding.l2_distance(embed),
+    # Embedding.embedding.max_inner_product(embed),
+    column = Embedding.embedding.cosine_distance(embed)
+    # column = Embedding.embedding.l2_distance(embed)
+    # column = Embedding.embedding.max_inner_product(embed)
+    query = db.session.query(
+        EmbeddingWithDocument,
+        column.label('distinct'),
+    ).filter(
+        Embedding.document_id == document_id,
+        Embedding.status == 0,
+    ).order_by(
+        column,
+    )
+    total = query.count()
+    if total == 0:
+        return [], 0
+    return query_one_page(query, page, size), total
 
 
 class Retriever(BaseRetriever):
