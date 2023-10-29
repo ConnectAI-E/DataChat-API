@@ -5,6 +5,9 @@ from flask import Flask
 from flask_session import Session
 from itsdangerous import BadSignature, want_bytes
 from flask_cors import CORS
+from flasgger import Swagger
+
+
 
 
 app = Flask(__name__)
@@ -20,6 +23,9 @@ app.config.from_prefixed_env()
 CORS(app, allow_headers=["Authorization", "X-Requested-With"], supports_credentials=True)
 Session(app)  # 使用Session对session的存储机制重新定义
 
+swagger_config = Swagger.DEFAULT_CONFIG
+Swagger(app, config=swagger_config)
+
 
 gunicorn_logger = logging.getLogger('gunicorn.error')
 app.logger.handlers = gunicorn_logger.handlers
@@ -29,4 +35,6 @@ openai_logger = logging.getLogger("openai")
 openai_logger.handlers = gunicorn_logger.handlers
 openai_logger.setLevel(gunicorn_logger.level)
 
+
+app.logger.info("Swagger %r", swagger_config)
 

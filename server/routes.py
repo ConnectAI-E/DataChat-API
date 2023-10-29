@@ -82,7 +82,10 @@ def before_request_callback():
         '/api/access_token',
         '/api/login', '/login', '/api/code2session',
         '/', '/favicon.ico',
+        '/apispec_1.json', '/apidocs/'
     ]:
+        return
+    if 'flasgger_static' in request.path:
         return
     if '/embed' in request.path and '/chat/completions' in request.path:
         # 这个接口不使用session校验，而是通过hash判断是否可用
@@ -142,6 +145,18 @@ def home():
 
 @app.route('/api/code2session', methods=['GET'])
 def code2session():
+    """
+    code2session
+    ---
+    tags:
+      - 外部集成接口
+    parameters:
+      - name: code
+        in: query
+    responses:
+      200:
+        description: 用户信息
+    """
     # 模拟客户的code2session接口
     code = request.args.get('code', default='', type=str)
     user = json.loads(base64.urlsafe_b64decode(code).decode())
@@ -152,6 +167,20 @@ def code2session():
 # 以下是自己的url
 @app.route('/api/login', methods=['GET'])
 def login_check():
+    """
+    登录
+    ---
+    tags:
+      - 用户相关接口
+    parameters:
+      - name: code
+        in: query
+    responses:
+      301:
+        description: 未登录
+      200:
+        description: 登录成功
+    """
     # 如果没有权限，
     # user_id = session.get('user_id', '')
     # if user_id:
@@ -190,6 +219,20 @@ def login_check():
 
 @app.route('/api/access_token', methods=['GET'])
 def get_access_token():
+    """
+    获取access_token
+    ---
+    tags:
+      - 用户相关接口
+    parameters:
+      - name: code
+        in: query
+    responses:
+      500:
+        description: 失败
+      200:
+        description: 获取成功
+    """
     code = request.args.get('code', default='', type=str)
     # TODO mock
     if code == 'JhHogaYEJId1lWLN':

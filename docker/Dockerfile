@@ -11,6 +11,8 @@ ADD ./docker/entrypoint.sh /entrypoint.sh
 ADD ./docker/wait-for-it.sh /wait-for-it.sh
 RUN chmod a+x /entrypoint.sh
 
+RUN pip3 install flasgger -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
+
 # ADD ./m3e-base.tar.gz /
 ADD ./m3e-base /m3e-base
 
