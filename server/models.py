@@ -77,6 +77,10 @@ class Collection(Document):
     class Index:
         name = 'collection'
 
+    @property
+    def created_at(self):
+        return int(self.created.timestamp() * 1000)
+
 #Documents区别于固有的Docunment
 class Documents(Document):
     uniqid = Long()     #唯一性id,去重用
@@ -234,10 +238,10 @@ def get_document_id_by_uniqid(collection_id, uniqid):
     return list(response)
 
 
-def get_documents_by_collection_id(user_id, collection_id):
+def get_documents_by_collection_id(user_id, collection_id, page, size):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
-    s = Search(index="document").filter("term", collection_id=collection_id, status=0).sort({"created": {"order": "desc"}})
+    s = Search(index="document").filter("term", collection_id=collection_id).filter("term", status=0).extra(from_=page*size-size, size=size).sort({"created": {"order": "desc"}})
     response = s.execute()
     total = response.hits.total.value
     # 返回搜索结果（文档实例的列表）

@@ -323,10 +323,10 @@ def api_collection_by_id(collection_id):
         'code': 0,
         'msg': 'success',
         'data': {
-            'id': collection.id,
+            'id': collection.meta.id,
             'name': collection.name,
             'description': collection.description,
-            'created': int(collection.created.timestamp() * 1000),
+            'created': collection.created_at,
         },
     })
 
