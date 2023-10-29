@@ -9,6 +9,7 @@ import threading
 from functools import partial
 from uuid import uuid4
 from time import time
+from datetime import datetime
 from urllib.parse import quote, unquote
 from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response, send_file
 from app import app
@@ -38,6 +39,7 @@ from models import (
     get_docs_by_document_id,
     set_document_summary,
     get_document_by_id,
+    get_relation_count_by_id,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -283,11 +285,11 @@ def api_collections():
         'code': 0,
         'msg': 'success',
         'data': [{
-            'id': collection.id,
+            'id': collection.meta.id,
             'name': collection.name,
             'description': collection.description,
-            'document_count': collection.document_count,
-            'created': int(collection.created.timestamp() * 1000),
+            'document_count': get_relation_count_by_id("document", collection_id=collection.meta.id),
+            'created': int(datetime.fromisoformat(collection.created).timestamp() * 1000),
         } for collection in collections],
         'total': total,
     })

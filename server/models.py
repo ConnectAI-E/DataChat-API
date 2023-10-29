@@ -159,8 +159,8 @@ def save_user(openid='', name='', **kwargs):
     response = s.execute()
     document_count = response.hits.total.value'''
 
-def get_collections(user_id):
-    s = Search(index="collection").filter("term", user_id=user_id)
+def get_collections(user_id, page, size):
+    s = Search(index="collection").filter("term", user_id=user_id).extra(from_=page*size-size, size=size)
     # 执行查询
     response = s.execute()
     total = response.hits.total.value
@@ -189,9 +189,18 @@ def save_collection(user_id, name, description):
         name=name,
         description=description,
         summary='',
+        status=0,
+        created=datetime.now(),
+        modified=datetime.now(),
     )
     collection.save()
-    return collection
+    return collection_id
+
+
+def get_relation_count_by_id(index, **kwargs):
+    s = Search(index=index).filter("term", **kwargs).extra(from_=0, size=0)
+    response = s.execute()
+    return response.hits.total.value
 
 
 def update_collection_by_id(user_id, collection_id, name, description):
