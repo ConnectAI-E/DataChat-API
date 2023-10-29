@@ -49,7 +49,9 @@ class NeedAuth(Exception): pass
 
 
 def create_access_token(user):
-    extra = user.extra
+    extra = user.extra.to_dict()
+    print('extra', extra)
+    app.logger.info("extra %r %r", extra, dict(extra))
     # 同时兼容<has_privilege, expires>和<active, exp_time>
     expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
     privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
@@ -121,7 +123,7 @@ def login_form():
             'openid': base64.urlsafe_b64encode(name.encode()).decode(),
             'permission': {
                 'has_privilege': True,
-                'expires': time() + 100,
+                'expires': time() + 3600,
                 # TODO
                 # 'collection_size': 10,
                 # 'bot_size': 1,
@@ -172,7 +174,7 @@ def login_check():
         session['access_token'] = access_token
         session['expired'] = expired
         session['openid'] = user.openid
-        session['user_id'] = str(user.id)
+        session['user_id'] = str(user.meta.id)
 
         # return redirect('/')
         # 使用html进行跳转
