@@ -23,18 +23,49 @@ app.config.from_prefixed_env()
 CORS(app, allow_headers=["Authorization", "X-Requested-With"], supports_credentials=True)
 # Session(app)  # 使用Session对session的存储机制重新定义
 
-class SessionInterface(SqlAlchemySessionInterface):
+class SessionInterface(RedisSessionInterface):
+
     def open_session(self, app, request):
+        # 　　从cookie中获取session
         arg_sid = request.args.get('__sid__', default='', type=str)
         cookie_sid = request.cookies.get('__sid__', '')
-        sid = cookie_sid or arg_sid or request.headers.get('Authorization', '')[7:]
-        request.cookies.set(app.session_cookie_name, sid)
-        super().__init__(app, request)
+        cookie_session = request.cookies.get('session', '')
+        sid = cookie_sid or cookie_session or arg_sid or request.headers.get('Authorization', '')[7:]
+        # 　　首次访问如没有获取到session  ID
+        if not sid:
+            # 　设置一个随机字符串，使用uuid
+            sid = self._generate_sid()
+
+            #返回特殊字典   <RedisSession {'_permanent': True}>
+
+            return self.session_class(sid=sid, permanent=self.permanent) #session_class = RedisSession()
+        if self.use_signer:
+            signer = self._get_signer(app)
+            if signer is None:
+                return None
+            try:
+                sid_as_bytes = signer.unsign(sid)
+                sid = sid_as_bytes.decode()
+            except BadSignature:
+                sid = self._generate_sid()
+                return self.session_class(sid=sid, permanent=self.permanent)
+
+        if not PY2 and not isinstance(sid, text_type):
+            sid = sid.decode('utf-8', 'strict')
+        val = self.redis.get(self.key_prefix + sid)
+        if val is not None:
+            try:
+                data = self.serializer.loads(val)
+                return self.session_class(data, sid=sid)
+            except:
+                return self.session_class(sid=sid, permanent=self.permanent)
+        return self.session_class(sid=sid, permanent=self.permanent)
+
 
 app.session_interface = SessionInterface(
     redis=app.config["SESSION_REDIS"],
+    key_prefix="know"
 )
-
 
 swagger_config = Swagger.DEFAULT_CONFIG
 Swagger(app, config=swagger_config)
