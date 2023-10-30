@@ -572,7 +572,7 @@ def get_docs_by_document_id(document_id, page, size):
         "term", document_id=document_id
     ).filter(
         "term", status=0
-    ).extra(from_=page*size-size, size=size).sort({"chunk_index": 1})
+    ).extra(from_=page*size-size, size=size).sort({"chunk_index": {"order": "asc"}})
     # 执行查询
     response = s.execute()
     total = response.hits.total.value

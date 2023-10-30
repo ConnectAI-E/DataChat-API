@@ -31,7 +31,7 @@ services:
     image: redis:alpine
 
   know-server:
-    image: know-server
+    image: know-server:es
     ports:
       - "8085:80"
     volumes:
@@ -48,4 +48,5 @@ services:
       - FLASK_DOMAIN=http://192.168.110.81:8085
       - FLASK_ES_HOST=elasticsearch
       - FLASK_ES_PORT=9200
+      - FLASK_MAX_CONTENT_LENGTH=104867600
 

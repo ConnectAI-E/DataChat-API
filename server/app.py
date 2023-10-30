@@ -50,8 +50,6 @@ class SessionInterface(RedisSessionInterface):
                 sid = self._generate_sid()
                 return self.session_class(sid=sid, permanent=self.permanent)
 
-        if not PY2 and not isinstance(sid, text_type):
-            sid = sid.decode('utf-8', 'strict')
         val = self.redis.get(self.key_prefix + sid)
         if val is not None:
             try:
