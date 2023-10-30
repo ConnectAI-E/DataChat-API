@@ -249,7 +249,9 @@ def get_document_id_by_uniqid(collection_id, uniqid):
         status=0
     )
     response = s.execute()
-    return list(response)
+    if response.hits.total.value == 0:
+        raise NotFound()
+    return response[0].meta.id
 
 
 def get_documents_by_collection_id(user_id, collection_id, page, size):
