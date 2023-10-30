@@ -1,6 +1,8 @@
 import os
-import requests
+import httpx
+from functools import cached_property
 from tempfile import NamedTemporaryFile
+from time import time
 from celery import Celery
 from app import app
 from models import save_document, save_embedding
@@ -20,7 +22,7 @@ from langchain.document_loaders.sitemap import SitemapLoader
 from langchain.schema import Document
 
 
-LARK_HOST = 'https://open.feishu.com'
+LARK_HOST = 'https://open.feishu.cn'
 
 
 def create_celery_app(app=None):
@@ -107,11 +109,11 @@ def embed_query(text, openai=False):
 
 
 class Lark(object):
-    def __init__(self, app_id=None, app_secret=None, verification_token=None, encrypt_key=None, host=LARK_HOST):
+    def __init__(self, app_id=None, secret_key=None, app_secret=None, verification_token=None, validation_token=None, encrypt_key=None, host=LARK_HOST):
         self.app_id = app_id
-        self.app_secret = app_secret
+        self.app_secret = app_secret or secret_key
         self.encrypt_key = encrypt_key
-        self.verification_token = verification_token
+        self.verification_token = verification_token or validation_token
         self.host = host
 
     @cached_property
@@ -140,8 +142,15 @@ class Lark(object):
             headers['Authorization'] = 'Bearer {}'.format(self.tenant_access_token)
         return httpx.request(method, url, headers=headers, **kwargs)
 
+    def get(self, url, **kwargs):
+        return self.request('GET', url, **kwargs)
+
+    def post(self, url, **kwargs):
+        return self.request('POST', url, **kwargs)
+
 class LarkDocLoader(object):
     def __init__(self, fileUrl, **kwargs):
+        app.logger.info("debug %r", kwargs)
         self.client = Lark(**kwargs)
         self.fileUrl = fileUrl
         t = fileUrl.split('/')
@@ -151,7 +160,8 @@ class LarkDocLoader(object):
         # https://xxx.feishu.cn/docx/ExGmdqrg4oz2evx7SRuciY78nRe
         # https://xxx.feishu.cn/wiki/V0LuwIeWCiL3yWkq0zBcn1g0nua
         if type_ == 'wiki':
-            res = self.client.request(f"{self.host}/open-apis/wiki/v2/spaces/get_node?token={document_id}").json()
+            url = f"{self.client.host}/open-apis/wiki/v2/spaces/get_node?token={document_id}"
+            res = self.client.get(url).json()
             document_id = res['data']['node']['obj_token']
             type_ = res['data']['node']['obj_type']
 
@@ -162,9 +172,9 @@ class LarkDocLoader(object):
     def load(self):
         # https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/raw_content
         # https://open.feishu.cn/open-apis/docx/v1/documents/:document_id/raw_content
-        url = f"{self.host}/open-apis/docx/v1/documents/{self.document_id}/raw_content"
-        res = self.client.request.get(url).json()
-        return Document(page_content=res['data']['content']), metadata=dict(
+        url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}/raw_content"
+        res = self.client.get(url).json()
+        return Document(page_content=res['data']['content'], metadata=dict(
             fileUrl=self.fileUrl,
             document_id=self.document_id,
         ))

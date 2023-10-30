@@ -29,7 +29,7 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
     elif fileType in ['feishudoc']:
         # 飞书文件导入
         collection = get_collection_by_id(None, collection_id)
-        user = get_user(collection.meta.id)
+        user = get_user(collection.user_id)
         extra = user.extra.to_dict()
         client = extra.get('client', {})
         loader = LarkDocLoader(fileUrl, **client)
