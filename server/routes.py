@@ -279,12 +279,11 @@ def api_get_collection_client():
     user = get_user(session.get('user_id', ''))
     extra = user.extra.to_dict()
     client = extra.get('client', {})
-    if client.get('app_id'):
-        callback_url = f'{app.config["DOMAIN"]}/feishu/{user.openid}'
-        client['callback_url'] = {
-            'card': callback_url + '/card',
-            'event': callback_url + '/event',
-        }
+    callback_url = f'{app.config["DOMAIN"]}/feishu/{user.openid}'
+    client['callback_url'] = {
+        'card': callback_url + '/card',
+        'event': callback_url + '/event',
+    }
     return jsonify({
         'code': 0,
         'msg': 'success',
