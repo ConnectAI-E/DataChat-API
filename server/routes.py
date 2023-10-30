@@ -289,16 +289,8 @@ def api_get_collection_client():
 @app.route('/api/collection/client', methods=['POST'])
 def api_save_collection_client():
     app_id = request.json.get('app_id')
-    secret_key = request.json.get('secret_key')
-    encrypt_key = request.json.get('encript_key') or request.json.get('encrypt_key')
-    validation_token = request.json.get('validation_token')
     user = get_user(session.get('user_id', ''))
-    save_user(openid=user.openid, name=user.name, client=dict(
-        app_id=app_id,
-        secret_key=secret_key,
-        encrypt_key=encrypt_key,
-        validation_token=validation_token,
-    ))
+    save_user(openid=user.openid, name=user.name, client=request.json)
     return jsonify({
         'code': 0,
         'msg': 'success',
