@@ -100,6 +100,7 @@ class Documents(ESDocument):
     status = Integer()
     created = Date()
     modified = Date()  # 用于保存最后一次修改的时间
+    version = Integer() #文档分片个数
 
     class Index:
         name = 'document'
@@ -300,7 +301,7 @@ def get_document_by_id(document_id):
     return doc if doc else None
 
 
-def save_document(collection_id, name, url, chunks, type, uniqid=None):
+def save_document(collection_id, name, url, chunks, type, uniqid=None, version=0):
     did = ObjID.new_id()
     doc = Documents(
         meta={'id': did},
@@ -312,6 +313,7 @@ def save_document(collection_id, name, url, chunks, type, uniqid=None):
         uniqid=uniqid,
         summary='',
         status=0,
+        version=version,
         created=datetime.now(),
         modified=datetime.now(),
     )

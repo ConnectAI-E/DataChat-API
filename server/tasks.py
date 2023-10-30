@@ -69,7 +69,7 @@ LOADER_MAPPING = {
 }
 
 
-def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=False, uniqid=''):
+def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=False, uniqid='', version=0):
     # 初始化embeddings
     if openai:
         embeddings = OpenAIEmbeddings()
@@ -81,7 +81,7 @@ def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, o
 
     split_docs = text_splitter.split_documents([doc])
     # 保存documents
-    document_id = save_document(collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType, uniqid=uniqid)
+    document_id = save_document(collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType, uniqid=uniqid, version=version)
     # document_ids.append(document_id)
     doc_result = embeddings.embed_documents([d.page_content for d in split_docs])
     for chunk_index, doc in enumerate(split_docs):
@@ -165,18 +165,30 @@ class LarkDocLoader(object):
             document_id = res['data']['node']['obj_token']
             type_ = res['data']['node']['obj_type']
 
-        if type_ != 'docx':
+        if type_ not in ['docx', 'doc']:
             raise Exception(f'unsupport type {type_}')
         self.document_id = document_id
+        # TODO (文档只有所有者可以订阅) 查询订阅状态
+        # url = f"{self.client.host}/open-apis/drive/v1/files/{document_id}/get_subscribe?file_type={type_}"
+        # res = self.client.get(url).json()
+        # if not res.get('data', {}).get('is_subscribe'):
+        #     url = f"{self.client.host}/open-apis/drive/v1/files/{document_id}/subscribe?file_type={type_}"
+        #     res = self.client.post(url).json()
+        #     app.logger.info("debug subscribe %r", res)
 
     def load(self):
         # https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/raw_content
         # https://open.feishu.cn/open-apis/docx/v1/documents/:document_id/raw_content
+        url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}"
+        res = self.client.get(url).json()
+        info = res.get('data', {}).get('document', {})
         url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}/raw_content"
         res = self.client.get(url).json()
         return Document(page_content=res['data']['content'], metadata=dict(
             fileUrl=self.fileUrl,
             document_id=self.document_id,
+            revision_id=info.get('revision_id', 0)
+            title=info.get('title', '')
         ))
 
 

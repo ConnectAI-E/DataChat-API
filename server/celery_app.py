@@ -34,7 +34,14 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
         client = extra.get('client', {})
         loader = LarkDocLoader(fileUrl, **client)
         doc = loader.load()
-        document_id = embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=openai, uniqid=uniqid)
+        document_id = embedding_single_document(
+            doc, fileUrl, fileType,
+            doc.metadata.title,
+            collection_id,
+            openai=openai,
+            uniqid=doc.metadata.document_id,
+            version=doc.metadata.revision_id,  # 当前只有飞书文档需要更新版本
+        )
         document_ids.append(document_id)
     elif fileType in ['pdf', 'word', 'excel', 'markdown', 'ppt', 'txt']:
         loader_class, loader_args = LOADER_MAPPING[fileType]
