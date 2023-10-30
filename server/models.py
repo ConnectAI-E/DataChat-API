@@ -169,6 +169,7 @@ def save_user(openid='', name='', **kwargs):
         return user
     else:
         user = User.get(id=response.hits[0].meta.id)
+        kwargs.update(user.extra.to_dict())
         user.update(openid=openid, name=name, extra=kwargs)
         return user
 

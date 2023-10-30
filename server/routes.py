@@ -274,6 +274,38 @@ def get_account():
     })
 
 
+@app.route('/api/collection/client', methods=['GET'])
+def api_get_collection_client():
+    user = get_user(session.get('user_id', ''))
+    extra = user.extra.to_dict()
+    client = extra.get('client', {})
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': client,
+    })
+
+
+@app.route('/api/collection/client', methods=['POST'])
+def api_save_collection_client():
+    client = extra.get('client', {})
+    app_id = request.json.get('app_id')
+    secret_key = request.json.get('secret_key')
+    encrypt_key = request.json.get('encript_key') or request.json.get('encrypt_key')
+    validation_token = request.json.get('validation_token')
+    user = get_user(session.get('user_id', ''))
+    save_user(openid=user.openid, name=user.name, client=dict(
+        app_id=app_id,
+        secret_key=secret_key,
+        encrypt_key=encrypt_key,
+        validation_token=validation_token,
+    ))
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+    })
+
+
 @app.route('/api/collection', methods=['GET'])
 def api_collections():
     page = request.args.get('page', default=1, type=int)
