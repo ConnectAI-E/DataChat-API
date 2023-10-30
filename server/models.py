@@ -241,7 +241,11 @@ def get_document_id_by_uniqid(collection_id, uniqid):
     s = Search(index="document").filter(
         "term",
         collection_id=collection_id,
+    ).filter(
+        "term",
         uniqid=uniqid,
+    ).filter(
+        "term",
         status=0
     )
     response = s.execute()
