@@ -34,6 +34,7 @@ from models import (
     create_bot,
     update_bot_by_hash,
     query_by_document_id,
+    get_docs_by_document_id,
     purge_document_by_id,
     get_document_id_by_uniqid,
     set_document_summary,
@@ -477,7 +478,10 @@ def api_query_by_document_id(document_id):
     size = request.args.get('size', default=20, type=int)
     size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
-    documents, total = query_by_document_id(document_id, q, page, size)
+    if q:
+        documents, total = query_by_document_id(document_id, q, page, size)
+    else:
+        documents, total = get_docs_by_document_id(document_id, page, size)
 
     return jsonify({
         'code': 0,

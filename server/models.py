@@ -564,6 +564,20 @@ def query_by_document_id(document_id, q, page, size, delta=0.5):
     }]
     return _query_by_filter_and_embed(q, filter_, embed, page, size, delta=delta)
 
+def get_docs_by_document_id(document_id, page, size):
+    s = Search(index="embedding").filter(
+        "term", document_id=document_id
+    ).filter(
+        "term", status=0
+    ).extra(from_=page*size-size, size=size).sort({"chunk_index": 1})
+    # 执行查询
+    response = s.execute()
+    total = response.hits.total.value
+    # 返回搜索结果（文档实例的列表）
+    if total == 0:
+        return  [], 0
+    return [(i, i.meta.score) for i in response], total
+
 
 class Retriever(BaseRetriever):
     collection_id: str = ''
