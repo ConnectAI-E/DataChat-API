@@ -36,7 +36,6 @@ from models import (
     query_by_document_id,
     purge_document_by_id,
     get_document_id_by_uniqid,
-    get_docs_by_document_id,
     set_document_summary,
     get_document_by_id,
     get_relation_count_by_id,

@@ -2,7 +2,7 @@ import redis
 import logging
 from datetime import timedelta
 from flask import Flask
-from flask_session import Session
+from flask_session import Session, RedisSessionInterface
 from itsdangerous import BadSignature, want_bytes
 from flask_cors import CORS
 from flasgger import Swagger
@@ -21,7 +21,20 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=86400)  # 执行ses
 app.config.from_prefixed_env()
 
 CORS(app, allow_headers=["Authorization", "X-Requested-With"], supports_credentials=True)
-Session(app)  # 使用Session对session的存储机制重新定义
+# Session(app)  # 使用Session对session的存储机制重新定义
+
+class SessionInterface(SqlAlchemySessionInterface):
+    def open_session(self, app, request):
+        arg_sid = request.args.get('__sid__', default='', type=str)
+        cookie_sid = request.cookies.get('__sid__', '')
+        sid = cookie_sid or arg_sid or request.headers.get('Authorization', '')[7:]
+        request.cookies.set(app.session_cookie_name, sid)
+        super().__init__(app, request)
+
+app.session_interface = SessionInterface(
+    redis=app.config["SESSION_REDIS"],
+)
+
 
 swagger_config = Swagger.DEFAULT_CONFIG
 Swagger(app, config=swagger_config)
