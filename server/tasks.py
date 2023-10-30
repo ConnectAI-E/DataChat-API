@@ -3,6 +3,7 @@ import httpx
 from functools import cached_property
 from tempfile import NamedTemporaryFile
 from time import time
+from datetime import timedelta
 from celery import Celery
 from app import app
 from models import save_document, save_embedding
@@ -54,6 +55,18 @@ def create_celery_app(app=None):
 
 
 celery = create_celery_app(app)
+
+celery.conf.beat_schedule = {
+    "sync_feishudoc": {
+        "task": "celery_app.sync_feishudoc",
+        "schedule": timedelta(hours=1), # 定时1hours执行一次
+        # "schedule": timedelta(seconds=5), # 定时2hours执行一次
+        # "schedule": 10.0, # 每10秒执行一次
+        # "schedule": crontab(minute='*/1'), # 定时每分钟执行一次
+        # 使用的是crontab表达式
+        "args": (False) # 函数传参的值
+    }
+}
 
 
 LOADER_MAPPING = {
@@ -149,24 +162,25 @@ class Lark(object):
         return self.request('POST', url, **kwargs)
 
 class LarkDocLoader(object):
-    def __init__(self, fileUrl, **kwargs):
+    def __init__(self, fileUrl, document_id, **kwargs):
         app.logger.info("debug %r", kwargs)
         self.client = Lark(**kwargs)
         self.fileUrl = fileUrl
-        t = fileUrl.split('/')
-        document_id = t.pop()
-        type_ = t.pop()
-        # https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node
-        # https://xxx.feishu.cn/docx/ExGmdqrg4oz2evx7SRuciY78nRe
-        # https://xxx.feishu.cn/wiki/V0LuwIeWCiL3yWkq0zBcn1g0nua
-        if type_ == 'wiki':
-            url = f"{self.client.host}/open-apis/wiki/v2/spaces/get_node?token={document_id}"
-            res = self.client.get(url).json()
-            document_id = res['data']['node']['obj_token']
-            type_ = res['data']['node']['obj_type']
+        if not document_id:
+            t = fileUrl.split('/')
+            document_id = t.pop()
+            type_ = t.pop()
+            # https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node
+            # https://xxx.feishu.cn/docx/ExGmdqrg4oz2evx7SRuciY78nRe
+            # https://xxx.feishu.cn/wiki/V0LuwIeWCiL3yWkq0zBcn1g0nua
+            if type_ == 'wiki':
+                url = f"{self.client.host}/open-apis/wiki/v2/spaces/get_node?token={document_id}"
+                res = self.client.get(url).json()
+                document_id = res['data']['node']['obj_token']
+                type_ = res['data']['node']['obj_type']
 
-        if type_ not in ['docx', 'doc']:
-            raise Exception(f'unsupport type {type_}')
+            if type_ not in ['docx', 'doc']:
+                raise Exception(f'unsupport type {type_}')
         self.document_id = document_id
         # TODO (文档只有所有者可以订阅) 查询订阅状态
         # url = f"{self.client.host}/open-apis/drive/v1/files/{document_id}/get_subscribe?file_type={type_}"
@@ -179,17 +193,29 @@ class LarkDocLoader(object):
     def load(self):
         # https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/raw_content
         # https://open.feishu.cn/open-apis/docx/v1/documents/:document_id/raw_content
-        url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}"
-        res = self.client.get(url).json()
-        info = res.get('data', {}).get('document', {})
         url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}/raw_content"
         res = self.client.get(url).json()
         return Document(page_content=res['data']['content'], metadata=dict(
             fileUrl=self.fileUrl,
             document_id=self.document_id,
-            revision_id=info.get('revision_id', 0)
-            title=info.get('title', '')
+            revision_id=self.version,
+            title=self.title,
         ))
+
+    @property
+    def version(self):
+        return self.file_info.get('revision_id', 0)
+
+    @property
+    def title(self):
+        return self.file_info.get('title', '')
+
+    @cached_property
+    def file_info(self):
+        url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}"
+        res = self.client.get(url).json()
+        app.logger.info("debug file_info %r %r", url, res)
+        return res.get('data', {}).get('document', {})
 
 
 

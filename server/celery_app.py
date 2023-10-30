@@ -1,8 +1,9 @@
 import os
+import logging
 import requests
 from hashlib import md5
 from langchain.schema import Document
-from models import get_user, get_collection_by_id
+from models import get_user, get_collection_by_id, Search, purge_document_by_id
 from tasks import (
     celery,
     SitemapLoader, LOADER_MAPPING,
@@ -32,15 +33,15 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
         user = get_user(collection.user_id)
         extra = user.extra.to_dict()
         client = extra.get('client', {})
-        loader = LarkDocLoader(fileUrl, **client)
+        loader = LarkDocLoader(fileUrl, None, **client)
         doc = loader.load()
         document_id = embedding_single_document(
             doc, fileUrl, fileType,
-            doc.metadata.title,
+            doc.metadata.get('title'),
             collection_id,
             openai=openai,
-            uniqid=doc.metadata.document_id,
-            version=doc.metadata.revision_id,  # 当前只有飞书文档需要更新版本
+            uniqid=doc.metadata.get('document_id'),
+            version=doc.metadata.get('revision_id'),  # 当前只有飞书文档需要更新版本
         )
         document_ids.append(document_id)
     elif fileType in ['pdf', 'word', 'excel', 'markdown', 'ppt', 'txt']:
@@ -59,4 +60,42 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
 
     return document_ids
 
+
+@celery.task()
+def sync_feishudoc(openai=False):
+    document_ids = []
+    response = Search(index="document").filter(
+        "term", type="feishudoc"
+    ).filter(
+        "term", status=0,
+    ).extra(
+        from_=0, size=10000
+    ).sort({"modified": {"order": "desc"}}).execute()
+    total = response.hits.total.value
+    logging.info("debug sync_feishudoc %r", total)
+    for document in response:
+        try:
+            collection = get_collection_by_id(None, document.collection_id)
+            user = get_user(collection.user_id)
+            extra = user.extra.to_dict()
+            client = extra.get('client', {})
+            loader = LarkDocLoader(document.path, document_id=document.uniqid, **client)
+            logging.info("debug version %r %r", document.path, loader.version)
+            if hasattr(document, 'version') and loader.version > document.version:
+                doc = loader.load()
+                document_id = embedding_single_document(
+                    doc, document.path, document.type,
+                    doc.metadata.get('title'),
+                    document.collection_id,
+                    openai=openai,
+                    uniqid=doc.metadata.get('document_id'),
+                    version=doc.metadata.get('revision_id'),  # 当前只有飞书文档需要更新版本
+                )
+                document_ids.append(document_id)
+                # 移除旧文档
+                purge_document_by_id(document.meta.id)
+        except Exception as e:
+            logging.error('error to sync_feishudoc %r %r', document.path, e)
+
+    logging.info("updated document_ids %r", document_ids)
 
