@@ -478,7 +478,7 @@ def get_hash_by_collection_id(collection_id):
 def get_data_by_hash(hash, json):
     bot = Search(index="bot").filter(
         "term",
-        collection_id=collection_id,
+        hash=hash,
     ).filter(
         "range",
         status={"gte": 0}
