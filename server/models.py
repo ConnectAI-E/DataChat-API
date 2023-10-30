@@ -251,7 +251,8 @@ def get_document_id_by_uniqid(collection_id, uniqid):
     response = s.execute()
     if response.hits.total.value == 0:
         raise NotFound()
-    return response[0].meta.id
+    # 这里的格式是需要数组
+    return [response[0].meta.id]
 
 
 def get_documents_by_collection_id(user_id, collection_id, page, size):
