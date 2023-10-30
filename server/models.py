@@ -188,7 +188,7 @@ def get_collections(user_id, page, size):
 
 def get_collection_by_id(user_id, collection_id):
     collection = Collection.get(id=collection_id)
-    if collection :
+    if collection and user_id:
         if collection.user_id == user_id:
             return collection
         else:

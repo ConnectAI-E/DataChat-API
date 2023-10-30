@@ -17,7 +17,10 @@ from langchain.document_loaders import (
     UnstructuredFileLoader,
 )
 from langchain.document_loaders.sitemap import SitemapLoader
+from langchain.schema import Document
 
+
+LARK_HOST = 'https://open.feishu.com'
 
 
 def create_celery_app(app=None):
@@ -101,5 +104,70 @@ def embed_query(text, openai=False):
         embeddings = HuggingFaceEmbeddings(model_name="/m3e-base")
 
     return embeddings.embed_query(text)
+
+
+class Lark(object):
+    def __init__(self, app_id=None, app_secret=None, verification_token=None, encrypt_key=None, host=LARK_HOST):
+        self.app_id = app_id
+        self.app_secret = app_secret
+        self.encrypt_key = encrypt_key
+        self.verification_token = verification_token
+        self.host = host
+
+    @cached_property
+    def _tenant_access_token(self):
+        # https://open.feishu.cn/document/ukTMukTMukTM/ukDNz4SO0MjL5QzM/auth-v3/auth/tenant_access_token_internal
+        url = f'{self.host}/open-apis/auth/v3/tenant_access_token/internal'
+        result = self.post(url, json={
+            'app_id': self.app_id,
+            'app_secret': self.app_secret,
+        }).json()
+        if "tenant_access_token" not in result:
+            raise Exception('get tenant_access_token error')
+        return result['tenant_access_token'], result['expire'] + time()
+
+    @property
+    def tenant_access_token(self):
+        token, expired = self._tenant_access_token
+        if not token or expired < time():
+            # retry get_tenant_access_token
+            del self._tenant_access_token
+            token, expired = self._tenant_access_token
+        return token
+
+    def request(self, method, url, headers=dict(), **kwargs):
+        if 'tenant_access_token' not in url:
+            headers['Authorization'] = 'Bearer {}'.format(self.tenant_access_token)
+        return httpx.request(method, url, headers=headers, **kwargs)
+
+class LarkDocLoader(object):
+    def __init__(self, fileUrl, **kwargs):
+        self.client = Lark(**kwargs)
+        self.fileUrl = fileUrl
+        t = fileUrl.split('/')
+        document_id = t.pop()
+        type_ = t.pop()
+        # https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node
+        # https://xxx.feishu.cn/docx/ExGmdqrg4oz2evx7SRuciY78nRe
+        # https://xxx.feishu.cn/wiki/V0LuwIeWCiL3yWkq0zBcn1g0nua
+        if type_ == 'wiki':
+            res = self.client.request(f"{self.host}/open-apis/wiki/v2/spaces/get_node?token={document_id}").json()
+            document_id = res['data']['node']['obj_token']
+            type_ = res['data']['node']['obj_type']
+
+        if type_ != 'docx':
+            raise Exception(f'unsupport type {type_}')
+        self.document_id = document_id
+
+    def load(self):
+        # https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document/raw_content
+        # https://open.feishu.cn/open-apis/docx/v1/documents/:document_id/raw_content
+        url = f"{self.host}/open-apis/docx/v1/documents/{self.document_id}/raw_content"
+        res = self.client.request.get(url).json()
+        return Document(page_content=res['data']['content']), metadata=dict(
+            fileUrl=self.fileUrl,
+            document_id=self.document_id,
+        ))
+
 
 

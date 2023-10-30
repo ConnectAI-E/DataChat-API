@@ -2,11 +2,13 @@ import os
 import requests
 from hashlib import md5
 from langchain.schema import Document
+from models import get_user, get_collection_by_id
 from tasks import (
     celery,
     SitemapLoader, LOADER_MAPPING,
     NamedTemporaryFile,
     embedding_single_document, get_status_by_id, embed_query,
+    LarkDocLoader,
 )
 
 
@@ -24,6 +26,16 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
             document_id = embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=openai, uniqid=uniqid)
             document_ids.append(document_id)
 
+    elif fileType in ['feishudoc']:
+        # 飞书文件导入
+        collection = get_collection_by_id(None, collection_id)
+        user = get_user(collection.meta.id)
+        extra = user.extra.to_dict()
+        client = extra.get('client', {})
+        loader = LarkDocLoader(fileUrl, **client)
+        doc = loader.load()
+        document_id = embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, openai=openai, uniqid=uniqid)
+        document_ids.append(document_id)
     elif fileType in ['pdf', 'word', 'excel', 'markdown', 'ppt', 'txt']:
         loader_class, loader_args = LOADER_MAPPING[fileType]
         # 全是文件，需要下载，再加载
