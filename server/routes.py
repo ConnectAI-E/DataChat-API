@@ -288,7 +288,6 @@ def api_get_collection_client():
 
 @app.route('/api/collection/client', methods=['POST'])
 def api_save_collection_client():
-    client = extra.get('client', {})
     app_id = request.json.get('app_id')
     secret_key = request.json.get('secret_key')
     encrypt_key = request.json.get('encript_key') or request.json.get('encrypt_key')
