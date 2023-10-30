@@ -516,11 +516,6 @@ def create_bot(user_id, collection_id, **extra):
     return hash
 
 def update_bot_by_hash(hash, action='', collection_id='', **extra):
-        user = User.get(id=response.hits[0].meta.id)
-        user.update(openid=openid, name=name, extra=kwargs)
-        return user
-    pass
-def update_bot_by_hash(hash, action='', collection_id='', **extra):
     bot = Search(index="bot").filter(
         "term",
         hash=hash,
