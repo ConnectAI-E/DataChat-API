@@ -141,6 +141,11 @@ def init():
     Collection.init()
     Embedding.init()
     Bot.init()
+    user = save_user(openid='64af638db84e8e004c3e1150')
+    save_collection(user.id, '知识库1', '知识库1', collection_id='651053fb44aa2000159bb49e')
+    user = save_user(openid='64d6368e927ed10001aa2d1e')
+    save_collection(user.id, '知识库2', '知识库2', collection_id='64db79d4101e85000142c096')
+
 
 def get_user(user_id):
     user = User.get(id=user_id)
@@ -190,8 +195,8 @@ def get_collection_by_id(user_id, collection_id):
         return collection
 
 
-def save_collection(user_id, name, description):
-    collection_id = ObjID.new_id()
+def save_collection(user_id, name, description, collection_id=None):
+    collection_id = collection_id or ObjID.new_id()
     collection = Collection(
         meta={'id': collection_id},
         user_id=user_id,
