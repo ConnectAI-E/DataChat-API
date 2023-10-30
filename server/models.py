@@ -20,7 +20,7 @@ from elasticsearch_dsl import (
     Boolean,
     Date,
     Integer,
-    Document,
+    Document as ESDocumentBase,
     InnerDoc,
     Join,
     Keyword,
@@ -53,7 +53,17 @@ connections.create_connection(
 )
 
 
-class User(Document):
+class ESDocument(ESDocumentBase):
+    @property
+    def id(self):
+        return self.meta.id
+
+    @property
+    def created_at(self):
+        return int(self.created.timestamp() * 1000)
+
+
+class User(ESDocument):
     openid = Keyword()
     name = Text(fields={"keyword": Keyword()})
     status = Integer()
@@ -65,7 +75,7 @@ class User(Document):
         name = 'user'
 
 
-class Collection(Document):
+class Collection(ESDocument):
     user_id = Keyword()  # 将字符串作为文档的 ID 存储
     name = Text(analyzer='ik_max_word')
     description = Text(analyzer='ik_max_word')  #知识库描述
@@ -77,18 +87,16 @@ class Collection(Document):
     class Index:
         name = 'collection'
 
-    @property
-    def created_at(self):
-        return int(self.created.timestamp() * 1000)
 
 #Documents区别于固有的Docunment
-class Documents(Document):
+class Documents(ESDocument):
     uniqid = Long()     #唯一性id,去重用
     collection_id = Keyword()  # 将字符串作为文档的 ID 存储
     type = Keyword()    #文档类型用keyword保证不分词
     path = Keyword()    #文档所在路径
     name = Text(analyzer='ik_max_word')
     chunks = Integer() #文档分片个数
+    uniqid = Keyword()  #去重的唯一ID
     summary = Text(analyzer='ik_max_word')  #文档摘要
     status = Integer()
     created = Date()
@@ -98,13 +106,14 @@ class Documents(Document):
         name = 'document'
 
 
-class Embedding(Document):
+class Embedding(ESDocument):
     document_id = Keyword()     #文件ID
     collection_id = Keyword()    #知识库ID
     chunk_index = Keyword()    #文件分片索引
     chunk_size = Integer()  #文件分片大小
     document = Text(analyzer='ik_max_word')       #分片内容
-    embedding = DenseVector(dims=768)
+    # embedding = DenseVector(dims=768, index=True, similarity="l2_norm")
+    embedding = DenseVector(dims=768, index=True, similarity="cosine")
     status = Integer()
     created = Date()
     modified = Date()  # 用于保存最后一次修改的时间
@@ -112,7 +121,8 @@ class Embedding(Document):
     class Index:
         name = 'embedding'
 
-class Bot(Document):
+
+class Bot(ESDocument):
     user_id = Keyword()  # 用户ID
     collection_id = Keyword()  # 知识库ID
     hash = Integer()    #hash
@@ -130,10 +140,10 @@ def init():
     Collection.init()
     Documents.init()
     Collection.init()
+    Embedding.init()
     Bot.init()
 
 def get_user(user_id):
-    print(User, user_id)
     user = User.get(id=user_id)
     if not user:
         raise NotFound()
@@ -158,10 +168,6 @@ def save_user(openid='', name='', **kwargs):
         user.update(openid=openid, name=name, extra=kwargs)
         return user
 
-'''class CollectionWithDocumentCount(Collection):
-    s = Documents.search(using="es",index="document").filter("term",collection_id = Collection.meta.id).filter("term", status=0)
-    response = s.execute()
-    document_count = response.hits.total.value'''
 
 def get_collections(user_id, page, size):
     s = Search(index="collection").filter("term", user_id=user_id).extra(from_=page*size-size, size=size)
@@ -284,7 +290,7 @@ def get_document_by_id(document_id):
 def save_document(collection_id, name, url, chunks, type, uniqid=None):
     did = ObjID.new_id()
     doc = Documents(
-        id=did,
+        meta={'id': did},
         collection_id=collection_id,
         type=type,
         name=name,
@@ -292,24 +298,29 @@ def save_document(collection_id, name, url, chunks, type, uniqid=None):
         chunks=chunks,
         uniqid=uniqid,
         summary='',
+        status=0,
+        created=datetime.now(),
+        modified=datetime.now(),
     )
     doc.save()
-    return doc
+    return did
 
 def save_embedding(collection_id, document_id, chunk_index, chunk_size, document, embedding):
     eid = ObjID.new_id()
     embedding = Embedding(
-        id=eid,
+        meta={'id': eid},
         collection_id=collection_id,
         document_id=document_id,
         chunk_index=chunk_index,
         chunk_size=chunk_size,
         document=document,
         embedding=embedding,
+        status=0,
+        created=datetime.now(),
+        modified=datetime.now(),
     )
     embedding.save()
-    return embedding
-
+    return eid
 
 def get_bot_list(user_id, collection_id):
     s = Search(index="bot").filter(
@@ -339,7 +350,6 @@ def get_bot_by_hash(hash):
     return bot[0]
 
 
-
 def get_bot_by_hash(hash):
     bot = Search(index="bot").filter(
         "term",
@@ -349,73 +359,207 @@ def get_bot_by_hash(hash):
         raise NotFound()
     return bot[0]
 
-def query_by_collection_id(collection_id, q):
+def query_by_collection_id(collection_id, q, page, size, delta=0.5):
     from tasks import embed_query
     embed = embed_query(q)
-    query = Q({
-  "query": {
-    "match": {
-      "title": {
-        "query": q,
-        "boost": 0.00001
-      }
-    }
-  },
-  "knn": {
-    "field": "content_vector",
-    "query_vector": embed ,
-    "k": 10,
-    "num_candidates": 50,
-    "boost": 1.0
-  },
-  "size": 20,
-  "explain": True,
-  "_source" : "title"
-}
-  )
-    s = Search(index="embedding").query(query).filter(
-        "term",
-        collection_id=collection_id,
-        status = 0,
-    )
-    result = s.execute()
-    return result
-'''    column = Embedding.embedding.cosine_distance(embed)
-    query = db.session.query(
-        EmbeddingWithDocument,
-        column.label('distinct'),
-    ).filter(
-        Embedding.collection_id == collection_id,
-        Embedding.status == 0,
-    ).order_by(
-        column,
-    )
-    total = query.count()
-    if total == 0:
-        return [], 0
-    return query_one_page(query, page, size), total'''
+    filter_ = [{
+        "term": { "collection_id": collection_id },
+    }, {
+        "term": { "status": 0 },
+    }]
+    return _query_by_filter_and_embed(q, filter_, embed, page, size, delta=delta)
 
+def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
+    s = Search().from_dict({
+        "query": {
+            "bool": {
+                "must": [
+                    {
+                        "match": {
+                            "document": {
+                                "query": q,
+                                "boost": 0.00001
+                            }
+                        },
+                    },
+                    {
+                        "bool":{
+                            "filter": filter_
+                        }
+                    }
+                ]
+            }
+        },
+        "knn": {
+            "filter": filter_,
+            "field": "embedding",
+            "query_vector": embed,
+            "k": size,
+            "num_candidates": 50,
+            "boost": 1.0
+        },
+        "size": size * 2,
+        "explain": True,
+        "_source": ["document", "document_id", "collection_id"],
+    }).index("embedding")
+
+    # app.logger.info("debug knn Search %r", s.to_dict())
+    response = s.execute()
+    total = response.hits.total.value
+    """
+    1. 如果关键词能命中topk以外的, total > k
+       如果命中的比较多，total > k * 2
+    2. 如果关键词不能命中（或者关键词命中的刚好在topk里面）  total == k
+    """
+    # TODO 排序+格式化
+    response_map = {i.meta.id: i for i in response}
+    # TODO 模拟排序
+    explanation = []
+    min, max = 10000, 0
+    for i in response:
+        details = i.meta.explanation.details
+        topk = list(filter(lambda d: 'top k' in d.description, details))
+        topk = topk[0].value if len(topk) > 0 else 0
+        match = list(filter(lambda d: 'sum of' in d.description, details))
+        match = match[0].value if len(match) > 0 else 0
+        min = match if match < min else min
+        max = match if match > max else max
+        explanation.append({
+            'id': i.meta.id,
+            'topk': topk,
+            'match': match,
+        })
+
+    for exp in explanation:
+        exp['stand_score'] = (match - min) / ((max - min) or 1)
+        exp['score'] = delta * exp['topk'] + (1 - delta) * exp['stand_score']
+
+    explanation = sorted(explanation, key=lambda e: e["score"], reverse=True)
+    app.logger.info("debug score %r", explanation)
+    result = []
+    for exp in explanation:
+        item = response_map[exp['id']]
+        result.append((item, exp['score']))
+    
+    return result[:size], total
 
 def get_collection_id_by_hash(hash):
-    pass
+    bot = Search(index="bot").filter(
+        "term",
+        hash=hash,
+    ).filter(
+        "term",
+        status=0
+    ).execute()
+    try:
+        if bot.hits.total.value == 0:
+            raise NotFound()
+        user = get_user(bot[0].user_id)
+        extra = user.extra.to_dict()
+        expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
+        privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
+        if privilege and int(expires or 0) > time():
+            return bot[0].collection_id
+    except Exception as e:
+        return None
 
 def get_hash_by_collection_id(collection_id):
-    pass
+    bot = Search(index="bot").filter(
+        "term",
+        collection_id=collection_id,
+    ).filter(
+        "range",
+        status={"gte": 0}
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    return bot[0].hash
 
 def get_data_by_hash(hash, json):
-    pass
+    bot = Search(index="bot").filter(
+        "term",
+        collection_id=collection_id,
+    ).filter(
+        "range",
+        status={"gte": 0}
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    extra = bot[0].extra.to_dict()
+    if extra:
+        messages = json.get('messages', [])
+        if extra.get('prompt', ''):
+            messages = [{
+                'role': 'system',
+                'content': extra.get('prompt', '')
+            }] + messages
+        json.update(
+            model=extra.get('model', 'gpt-3.5-turbo'),
+            temperature=extra.get('temperature', 0.7),
+            messages=messages,
+        )
+    return json
 
 def create_bot(user_id, collection_id, **extra):
-    pass
+    hash = str(uuid4())
+    bot = Bot(
+        meta={'id': ObjID.new_id()},
+        user_id=user_id,
+        collection_id=collection_id,
+        hash=hash,
+        extra=extra,
+        status=1,  # 启用
+        created=datetime.now(),
+        modified=datetime.now(),
+    )
+    bot.save()
+    return hash
 
 def update_bot_by_hash(hash, action='', collection_id='', **extra):
+        user = User.get(id=response.hits[0].meta.id)
+        user.update(openid=openid, name=name, extra=kwargs)
+        return user
     pass
+def update_bot_by_hash(hash, action='', collection_id='', **extra):
+    bot = Search(index="bot").filter(
+        "term",
+        hash=hash,
+    ).filter(
+        "range",
+        status={"gte": 0}
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    bot = bot[0]
+    # 如果是action，可以只传一个参数。
+    # 更新的时候和前面的创建接口使用类似的参数。
+    # action=start/stop/remove/refresh
+    if action == 'refresh':
+        hash = str(uuid4())
+        bot.update(hash=hash)
+        return hash
+    elif action:
+        if 'start' == action:
+            status = 1
+        elif 'remove' == action:
+            status = -1
+        else:
+            status = 0
+        bot.update(status=status)
+        return status
+    elif collection_id:
+        bot.update(collection_id=collection_id, extra=extra)
+        return True
 
-def query_by_document_id(document_id, q, page, size):
-    pass
-
-def get_docs_by_document_id(document_id, page, size):
-    pass
+def query_by_document_id(document_id, q, page, size, delta=0.5):
+    from tasks import embed_query
+    embed = embed_query(q)
+    filter_ = [{
+        "term": { "document_id": document_id },
+    }, {
+        "term": { "status": 0 },
+    }]
+    return _query_by_filter_and_embed(q, filter_, embed, page, size, delta=delta)
 
 
 class Retriever(BaseRetriever):

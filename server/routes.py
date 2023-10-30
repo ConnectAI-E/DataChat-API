@@ -267,7 +267,7 @@ def get_account():
         'code': 0,
         'msg': 'success',
         'data': {
-            'id': user.id,
+            'id': user.meta.id,
             'name': user.name,
             'openid': user.openid,
         },
@@ -366,11 +366,11 @@ def api_get_documents_by_collection_id(collection_id):
         'code': 0,
         'msg': 'success',
         'data': [{
-            'id': document.id,
+            'id': document.meta.id,
             'name': document.name,
             'path': document.path,
             'type': document.type,
-            'created': int(document.created.timestamp() * 1000),
+            'created': int(datetime.fromisoformat(document.created).timestamp() * 1000),
         } for document in documents],
         'total': total,
     })
@@ -454,13 +454,12 @@ def api_query_by_collection_id(collection_id):
     documents, total = query_by_collection_id(collection_id, q, page, size)
 
     app.logger.info("%r %r", documents, total)
-    app.logger.info("debug Documents %r", [(d.document, distance) for d, distance in documents])
     return jsonify({
         'code': 0,
         'msg': 'success',
         'data': [{
             'document_id': document.document_id,
-            'document_name': document.document_name,
+            # 'document_name': document.document_name,
             'document': document.document,
             'distance': distance,
             'collection_id': collection_id,
@@ -475,17 +474,14 @@ def api_query_by_document_id(document_id):
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
     user_id = session.get('user_id', '')
-    if q:
-        documents, total = query_by_document_id(document_id, q, page, size)
-    else:
-        documents, total = get_docs_by_document_id(document_id, page, size)
+    documents, total = query_by_document_id(document_id, q, page, size)
 
     return jsonify({
         'code': 0,
         'msg': 'success',
         'data': [{
             'document_id': document.document_id,
-            'document_name': document.document_name,
+            # 'document_name': document.document_name,
             'document': document.document,
             'distance': distance,
         } for document, distance in documents],
