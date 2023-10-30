@@ -90,7 +90,6 @@ class Collection(ESDocument):
 
 #Documents区别于固有的Docunment
 class Documents(ESDocument):
-    uniqid = Long()     #唯一性id,去重用
     collection_id = Keyword()  # 将字符串作为文档的 ID 存储
     type = Keyword()    #文档类型用keyword保证不分词
     path = Keyword()    #文档所在路径

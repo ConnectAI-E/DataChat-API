@@ -277,6 +277,7 @@ def get_account():
 def api_collections():
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     collections, total = get_collections(user_id, page, size)
 
@@ -358,6 +359,7 @@ def api_delete_collection_by_id(collection_id):
 def api_get_documents_by_collection_id(collection_id):
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     documents, total = get_documents_by_collection_id(user_id, collection_id, page, size)
 
@@ -446,6 +448,7 @@ def api_query_by_collection_id(collection_id):
     q = request.args.get('q', default='', type=str)
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到知识库或者没有权限'
@@ -472,6 +475,7 @@ def api_query_by_document_id(document_id):
     q = request.args.get('q', default='', type=str)
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     documents, total = query_by_document_id(document_id, q, page, size)
 
@@ -679,6 +683,7 @@ def upload():
 def get_bot_list_handler():
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     bots, total = get_bot_list(user_id, '', page, size)
     return jsonify({
