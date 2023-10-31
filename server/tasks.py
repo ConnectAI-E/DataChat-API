@@ -131,7 +131,7 @@ def embed_query(text, openai=False):
 
 
 class Lark(object):
-    def __init__(self, app_id=None, secret_key=None, app_secret=None, verification_token=None, validation_token=None, encript_key=None, encrypt_key=None, host=LARK_HOST):
+    def __init__(self, app_id=None, secret_key=None, app_secret=None, verification_token=None, validation_token=None, encript_key=None, encrypt_key=None, host=LARK_HOST, **kwargs):
         self.app_id = app_id
         self.app_secret = app_secret or secret_key
         self.encrypt_key = encrypt_key or encript_key
