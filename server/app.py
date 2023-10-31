@@ -14,7 +14,7 @@ app.config["SESSION_TYPE"] = 'redis'  # 指定session存储的类型
 app.config["SESSION_REDIS"] = redis.Redis(host="redis", port=6379)  # 创建redis连接
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=86400)  # 执行session的有效时间
 
-app.config.setdefault('DELTA', 0.5)
+app.config.setdefault('DELTA', 0.25)
 
 # 从环境变量读取配置信息，统一使用前缀
 # FLASK_SQLALCHEMY_DATABASE_URI --> app.config["SQLALCHEMY_DATABASE_URI"]
