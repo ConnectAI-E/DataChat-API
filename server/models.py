@@ -173,7 +173,11 @@ def save_user(openid='', name='', **kwargs):
 
 
 def get_collections(user_id, page, size):
-    s = Search(index="collection").filter("term", user_id=user_id).extra(from_=page*size-size, size=size)
+    s = Search(index="collection").filter(
+        "term", user_id=user_id,
+    ).filter(
+        "term", status=0,
+    ).extra(from_=page*size-size, size=size)
     # 执行查询
     response = s.execute()
     total = response.hits.total.value
