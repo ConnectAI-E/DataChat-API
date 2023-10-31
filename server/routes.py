@@ -1,5 +1,4 @@
 import os
-import time
 import asyncio
 import logging
 import json
@@ -9,7 +8,7 @@ import requests
 import threading
 from functools import partial
 from uuid import uuid4
-from time import time
+from time import time, sleep
 from datetime import datetime
 from urllib.parse import quote, unquote
 from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response, send_file
@@ -446,7 +445,7 @@ def api_embed_documents(collection_id):
     task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
     if fileType == 'feishudoc':
         # 飞书云文档如果是没有权限，会很快报错
-        time.sleep(1)
+        sleep(1)
         result = get_status_by_id(task_id)
         if result.status == 'FAILURE':
             logging.error('task FAILURE %r', task)
