@@ -237,7 +237,8 @@ def delete_collection_by_id(user_id, collection_id):
     collection.save(refresh='wait_for')
     bots = Search(index="bot").filter("term", collection_id=collection_id).execute()
     for bot in bots:
-        bot.update(collection_id='')
+        bot.collection_id = ''
+        bot.save(refresh='wait_for')
 
 
 def get_document_id_by_uniqid(collection_id, uniqid):
@@ -276,10 +277,12 @@ def remove_document_by_id(user_id, collection_id, document_id):
     assert collection, '找不到对应知识库'
     doc = Documents.get(id=document_id)
     if doc:
-        doc.update(status=-1)
+        doc.status=-1
+        doc.save(refresh='wait_for')
         embeddings = Search(index='embedding').filter("term", document_id=document_id).execute()
         for embedding in embeddings:
-            embedding.update(status=-1)
+            embedding.status = -1
+            embedding.save(refresh='wait_for')
 
 
 def purge_document_by_id(document_id):
@@ -294,7 +297,8 @@ def purge_document_by_id(document_id):
 def set_document_summary(document_id, summary):
     doc = Documents.get(id=document_id)
     if doc:
-        doc.update(summary=summary)
+        doc.summary = summary
+        doc.save(refresh='wait_for')
 
 
 def get_document_by_id(document_id):
@@ -550,7 +554,8 @@ def update_bot_by_hash(hash, action='', collection_id='', **extra):
     # action=start/stop/remove/refresh
     if action == 'refresh':
         hash = str(uuid4())
-        bot.update(hash=hash)
+        bot.hash = hash
+        bot.save(refresh='wait_for')
         return hash
     elif action:
         if 'start' == action:
@@ -559,10 +564,13 @@ def update_bot_by_hash(hash, action='', collection_id='', **extra):
             status = -1
         else:
             status = 0
-        bot.update(status=status)
+        bot.status = status
+        bot.save(refresh='wait_for')
         return status
     elif collection_id:
-        bot.update(collection_id=collection_id, extra=extra)
+        bot.collection_id = collection_id
+        bot.extra = extra
+        bot.save(refresh='wait_for')
         return True
 
 def query_by_document_id(document_id, q, page, size, delta=None):
