@@ -96,15 +96,19 @@ def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, o
     # 保存documents
     document_id = save_document(collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType, uniqid=uniqid, version=version)
     # document_ids.append(document_id)
-    doc_result = embeddings.embed_documents([d.page_content for d in split_docs])
-    for chunk_index, doc in enumerate(split_docs):
-        save_embedding(
-            collection_id, document_id,
-            chunk_index, len(doc.page_content),
-            doc.page_content,
-            doc_result[chunk_index],  # embed
-        )
-    return document_id
+    try:
+        doc_result = embeddings.embed_documents([d.page_content for d in split_docs])
+        for chunk_index, doc in enumerate(split_docs):
+            save_embedding(
+                collection_id, document_id,
+                chunk_index, len(doc.page_content),
+                doc.page_content,
+                doc_result[chunk_index],  # embed
+            )
+        return document_id
+    except Exception as e:
+        # 出错的时候移除
+        purge_document_by_id(document_id)
 
 
 def get_status_by_id(task_id):
