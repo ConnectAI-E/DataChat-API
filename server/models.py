@@ -162,7 +162,7 @@ def save_user(openid='', name='', **kwargs):
             status = 0,
             extra=kwargs,
         )
-        user.save()
+        user.save(refresh='wait_for')
         return user
     else:
         user = User.get(id=response.hits[0].meta.id)
@@ -206,7 +206,7 @@ def save_collection(user_id, name, description, collection_id=None):
         created=datetime.now(),
         modified=datetime.now(),
     )
-    collection.save()
+    collection.save(refresh='wait_for')
     return collection_id
 
 
@@ -222,7 +222,7 @@ def update_collection_by_id(user_id, collection_id, name, description):
         raise NotFound('collection not found')
     collection.name = name
     collection.description = description
-    collection.save()
+    collection.save(refresh='wait_for')
 
 
 def delete_collection_by_id(user_id, collection_id):
@@ -230,7 +230,7 @@ def delete_collection_by_id(user_id, collection_id):
     if not collection:
         raise NotFound('collection not found')
     collection.status = -1
-    collection.save()
+    collection.save(refresh='wait_for')
     bots = Search(index="bot").filter("term", collection_id=collection_id).execute()
     for bot in bots:
         bot.update(collection_id='')
@@ -314,7 +314,7 @@ def save_document(collection_id, name, url, chunks, type, uniqid=None, version=0
         created=datetime.now(),
         modified=datetime.now(),
     )
-    doc.save()
+    doc.save(refresh='wait_for')
     return did
 
 def save_embedding(collection_id, document_id, chunk_index, chunk_size, document, embedding):
@@ -527,7 +527,7 @@ def create_bot(user_id, collection_id, **extra):
         created=datetime.now(),
         modified=datetime.now(),
     )
-    bot.save()
+    bot.save(refresh='wait_for')
     return hash
 
 def update_bot_by_hash(hash, action='', collection_id='', **extra):
