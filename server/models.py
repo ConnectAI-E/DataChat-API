@@ -374,7 +374,7 @@ def get_bot_by_hash(hash):
         raise NotFound()
     return bot[0]
 
-def query_by_collection_id(collection_id, q, page, size, delta=0.5):
+def query_by_collection_id(collection_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
     filter_ = [{
@@ -382,7 +382,10 @@ def query_by_collection_id(collection_id, q, page, size, delta=0.5):
     }, {
         "term": { "status": 0 },
     }]
-    return _query_by_filter_and_embed(q, filter_, embed, page, size, delta=delta)
+    return _query_by_filter_and_embed(
+        q, filter_, embed, page, size,
+        delta=float(app.config['DELTA'] if delta is None else delta),
+    )
 
 def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
     s = Search().from_dict({
@@ -561,7 +564,7 @@ def update_bot_by_hash(hash, action='', collection_id='', **extra):
         bot.update(collection_id=collection_id, extra=extra)
         return True
 
-def query_by_document_id(document_id, q, page, size, delta=0.5):
+def query_by_document_id(document_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
     filter_ = [{
@@ -569,7 +572,10 @@ def query_by_document_id(document_id, q, page, size, delta=0.5):
     }, {
         "term": { "status": 0 },
     }]
-    return _query_by_filter_and_embed(q, filter_, embed, page, size, delta=delta)
+    return _query_by_filter_and_embed(
+        q, filter_, embed, page, size,
+        delta=float(app.config['DELTA'] if delta is None else delta),
+    )
 
 def get_docs_by_document_id(document_id, page, size):
     s = Search(index="embedding").filter(
