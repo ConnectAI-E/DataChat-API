@@ -283,7 +283,8 @@ def remove_document_by_id(user_id, collection_id, document_id):
         doc.status=-1
         doc.save(refresh='wait_for')
         embeddings = Search(index='embedding').filter("term", document_id=document_id).execute()
-        for embedding in embeddings:
+        for e in embeddings:
+            embedding = Embedding.get(id=e.meta.id)
             embedding.update(status=-1)
 
 
@@ -292,7 +293,8 @@ def purge_document_by_id(document_id):
     if doc:
         doc.delete()
         embeddings = Search(index='embedding').filter("term", document_id=document_id).execute()
-        for embedding in embeddings:
+        for e in embeddings:
+            embedding = Embedding.get(id=e.meta.id)
             embedding.delete()
 
 
