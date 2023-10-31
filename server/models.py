@@ -125,7 +125,7 @@ class Embedding(ESDocument):
 class Bot(ESDocument):
     user_id = Keyword()  # 用户ID
     collection_id = Keyword()  # 知识库ID
-    hash = Integer()    #hash
+    hash = Keyword()    #hash
     extra = Object()    #机器人配置信息
     status = Integer()
     created = Date()
