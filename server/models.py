@@ -253,7 +253,8 @@ def get_document_id_by_uniqid(collection_id, uniqid):
     )
     response = s.execute()
     if response.hits.total.value == 0:
-        raise NotFound()
+        return None  # 这里不抛出异常
+        # raise NotFound()
     # 这里的格式是需要数组
     return [response[0].meta.id]
 
