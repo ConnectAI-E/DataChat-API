@@ -451,7 +451,7 @@ def api_embed_documents(collection_id):
             logging.error('task FAILURE %r', result)
             return jsonify({
                 'code': -1,
-                'msg': result.result
+                'msg': str(result.result)
             })
 
     return jsonify({
