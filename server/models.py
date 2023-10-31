@@ -446,7 +446,7 @@ def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
         })
 
     for exp in explanation:
-        exp['stand_score'] = (match - min) / ((max - min) or 1)
+        exp['stand_score'] = (exp['match'] - min) / ((max - min) or 1)
         exp['score'] = delta * exp['topk'] + (1 - delta) * exp['stand_score']
 
     explanation = sorted(explanation, key=lambda e: e["score"], reverse=True)
