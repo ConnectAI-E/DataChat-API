@@ -446,9 +446,9 @@ def api_embed_documents(collection_id):
     if fileType == 'feishudoc':
         # 飞书云文档如果是没有权限，会很快报错
         sleep(1)
-        result = get_status_by_id(task_id)
+        result = get_status_by_id(task.id)
         if result.status == 'FAILURE':
-            logging.error('task FAILURE %r', task)
+            logging.error('task FAILURE %r', result)
             return jsonify({
                 'code': -1,
                 'msg': result.result
