@@ -6,7 +6,7 @@ from time import time
 from datetime import timedelta
 from celery import Celery
 from app import app
-from models import save_document, save_embedding
+from models import save_document, save_embedding, ObjID
 from langchain.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 from langchain.document_loaders import (
@@ -93,8 +93,8 @@ def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, o
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
     split_docs = text_splitter.split_documents([doc])
-    # 保存documents
-    document_id = save_document(collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType, uniqid=uniqid, version=version)
+    # 先生成document_id，等向量保存完成之后，再保存文档
+    document_id = ObjID.new_id()
     # document_ids.append(document_id)
     try:
         doc_result = embeddings.embed_documents([d.page_content for d in split_docs])
@@ -105,6 +105,11 @@ def embedding_single_document(doc, fileUrl, fileType, fileName, collection_id, o
                 doc.page_content,
                 doc_result[chunk_index],  # embed
             )
+        save_document(
+            collection_id, fileName or fileUrl, fileUrl, len(split_docs), fileType,
+            uniqid=uniqid, version=version,
+            document_id=document_id,
+        )
         return document_id
     except Exception as e:
         # 出错的时候移除

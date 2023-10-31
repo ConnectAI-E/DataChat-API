@@ -310,8 +310,8 @@ def get_document_by_id(document_id):
     return doc if doc else None
 
 
-def save_document(collection_id, name, url, chunks, type, uniqid=None, version=0):
-    did = ObjID.new_id()
+def save_document(collection_id, name, url, chunks, type, uniqid=None, version=0, document_id=None):
+    did = document_id or ObjID.new_id()
     doc = Documents(
         meta={'id': did},
         collection_id=collection_id,
