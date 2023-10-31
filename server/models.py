@@ -218,7 +218,9 @@ def save_collection(user_id, name, description, collection_id=None):
 
 
 def get_relation_count_by_id(index, **kwargs):
-    s = Search(index=index).filter("term", **kwargs).extra(from_=0, size=0)
+    s = Search(index=index).extra(from_=0, size=0)
+    for k, v in kwargs:
+        s = s.filter("term", k=v)
     response = s.execute()
     return response.hits.total.value
 

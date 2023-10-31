@@ -317,7 +317,7 @@ def api_collections():
             'id': collection.meta.id,
             'name': collection.name,
             'description': collection.description,
-            'document_count': get_relation_count_by_id("document", collection_id=collection.meta.id),
+            'document_count': get_relation_count_by_id("document", collection_id=collection.meta.id, status=0),
             'created': int(datetime.fromisoformat(collection.created).timestamp() * 1000),
         } for collection in collections],
         'total': total,
