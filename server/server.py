@@ -15,7 +15,10 @@ def api_exception(e):
 
 
 if __name__ == "__main__":
-    init()
+    try:
+        init()
+    except Exception as e:
+        logging.exception(e)
 
 
 if __name__ == "__main__":

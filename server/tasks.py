@@ -176,7 +176,7 @@ class LarkDocLoader(object):
         self.client = Lark(**kwargs)
         self.fileUrl = fileUrl
         if not document_id:
-            t = fileUrl.split('/')
+            t = fileUrl.split('?')[0].split('/')
             document_id = t.pop()
             type_ = t.pop()
             # https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node
@@ -209,7 +209,7 @@ class LarkDocLoader(object):
         res = self.client.get(url).json()
         if 'data' not in res or 'content' not in res['data']:
             app.logger.error("error get content %r", res)
-            raise Exception(f'error get content {url}')
+            raise Exception(f'error get content for document')
         return Document(page_content=res['data']['content'], metadata=dict(
             fileUrl=self.fileUrl,
             document_id=self.document_id,

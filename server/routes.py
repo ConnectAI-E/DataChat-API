@@ -1,4 +1,5 @@
 import os
+import time
 import asyncio
 import logging
 import json
@@ -443,6 +444,16 @@ def api_embed_documents(collection_id):
 
     # isopenai=False
     task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
+    if fileType == 'feishudoc':
+        # 飞书云文档如果是没有权限，会很快报错
+        time.sleep(1)
+        result = get_status_by_id(task_id)
+        if result.status == 'FAILURE':
+            logging.error('task FAILURE %r', task)
+            return jsonify({
+                'code': -1,
+                'msg': result.result
+            })
 
     return jsonify({
         'code': 0,
