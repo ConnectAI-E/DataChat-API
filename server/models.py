@@ -49,7 +49,7 @@ class NotFound(Exception): pass
 
 connections.create_connection(
     hosts=f"http://{app.config['ES_HOST']}:{app.config['ES_PORT']}",
-    # basic_auth=('elastic', 'fsMxQANdq1aZylypQWZD')
+    # basic_auth=('elastic', '')
 )
 
 
