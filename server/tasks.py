@@ -180,6 +180,9 @@ class LarkDocLoader(object):
             if type_ == 'wiki':
                 url = f"{self.client.host}/open-apis/wiki/v2/spaces/get_node?token={document_id}"
                 res = self.client.get(url).json()
+                if 'data' not in res or 'node' not in res['data']:
+                    app.logger.error("error get node %r", res)
+                    raise Exception(f'error get node {document_id}')
                 document_id = res['data']['node']['obj_token']
                 type_ = res['data']['node']['obj_type']
 
@@ -199,6 +202,9 @@ class LarkDocLoader(object):
         # https://open.feishu.cn/open-apis/docx/v1/documents/:document_id/raw_content
         url = f"{self.client.host}/open-apis/docx/v1/documents/{self.document_id}/raw_content"
         res = self.client.get(url).json()
+        if 'data' not in res or 'content' not in res['data']:
+            app.logger.error("error get content %r", res)
+            raise Exception(f'error get content {url}')
         return Document(page_content=res['data']['content'], metadata=dict(
             fileUrl=self.fileUrl,
             document_id=self.document_id,
