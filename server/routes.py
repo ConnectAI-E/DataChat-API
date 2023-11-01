@@ -8,7 +8,8 @@ import requests
 import threading
 from functools import partial
 from uuid import uuid4
-from time import time
+from time import time, sleep
+from datetime import datetime
 from urllib.parse import quote, unquote
 from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response, send_file
 from app import app
@@ -33,11 +34,12 @@ from models import (
     create_bot,
     update_bot_by_hash,
     query_by_document_id,
+    get_docs_by_document_id,
     purge_document_by_id,
     get_document_id_by_uniqid,
-    get_docs_by_document_id,
     set_document_summary,
     get_document_by_id,
+    get_relation_count_by_id,
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
@@ -49,7 +51,9 @@ class NeedAuth(Exception): pass
 
 
 def create_access_token(user):
-    extra = user.extra
+    extra = user.extra.to_dict()
+    print('extra', extra)
+    app.logger.info("extra %r %r", extra, dict(extra))
     # 同时兼容<has_privilege, expires>和<active, exp_time>
     expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
     privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
@@ -80,7 +84,10 @@ def before_request_callback():
         '/api/access_token',
         '/api/login', '/login', '/api/code2session',
         '/', '/favicon.ico',
+        '/apispec_1.json', '/apidocs/'
     ]:
+        return
+    if 'flasgger_static' in request.path:
         return
     if '/embed' in request.path and '/chat/completions' in request.path:
         # 这个接口不使用session校验，而是通过hash判断是否可用
@@ -121,7 +128,7 @@ def login_form():
             'openid': base64.urlsafe_b64encode(name.encode()).decode(),
             'permission': {
                 'has_privilege': True,
-                'expires': time() + 100,
+                'expires': time() + 3600,
                 # TODO
                 # 'collection_size': 10,
                 # 'bot_size': 1,
@@ -140,6 +147,18 @@ def home():
 
 @app.route('/api/code2session', methods=['GET'])
 def code2session():
+    """
+    code2session
+    ---
+    tags:
+      - 外部集成接口
+    parameters:
+      - name: code
+        in: query
+    responses:
+      200:
+        description: 用户信息
+    """
     # 模拟客户的code2session接口
     code = request.args.get('code', default='', type=str)
     user = json.loads(base64.urlsafe_b64decode(code).decode())
@@ -150,6 +169,20 @@ def code2session():
 # 以下是自己的url
 @app.route('/api/login', methods=['GET'])
 def login_check():
+    """
+    登录
+    ---
+    tags:
+      - 用户相关接口
+    parameters:
+      - name: code
+        in: query
+    responses:
+      301:
+        description: 未登录
+      200:
+        description: 登录成功
+    """
     # 如果没有权限，
     # user_id = session.get('user_id', '')
     # if user_id:
@@ -172,7 +205,7 @@ def login_check():
         session['access_token'] = access_token
         session['expired'] = expired
         session['openid'] = user.openid
-        session['user_id'] = str(user.id)
+        session['user_id'] = str(user.meta.id)
 
         # return redirect('/')
         # 使用html进行跳转
@@ -188,6 +221,20 @@ def login_check():
 
 @app.route('/api/access_token', methods=['GET'])
 def get_access_token():
+    """
+    获取access_token
+    ---
+    tags:
+      - 用户相关接口
+    parameters:
+      - name: code
+        in: query
+    responses:
+      500:
+        description: 失败
+      200:
+        description: 获取成功
+    """
     code = request.args.get('code', default='', type=str)
     # TODO mock
     if code == 'JhHogaYEJId1lWLN':
@@ -220,10 +267,38 @@ def get_account():
         'code': 0,
         'msg': 'success',
         'data': {
-            'id': user.id,
+            'id': user.meta.id,
             'name': user.name,
             'openid': user.openid,
         },
+    })
+
+
+@app.route('/api/collection/client', methods=['GET'])
+def api_get_collection_client():
+    user = get_user(session.get('user_id', ''))
+    extra = user.extra.to_dict()
+    client = extra.get('client', {})
+    callback_url = f'{app.config["SYSTEM_DOMAIN"]}/feishu/{user.openid}'
+    client['callback_url'] = {
+        'card': callback_url + '/card',
+        'event': callback_url + '/event',
+    }
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': client,
+    })
+
+
+@app.route('/api/collection/client', methods=['POST'])
+def api_save_collection_client():
+    app_id = request.json.get('app_id')
+    user = get_user(session.get('user_id', ''))
+    save_user(openid=user.openid, name=user.name, client=request.json)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
     })
 
 
@@ -231,6 +306,7 @@ def get_account():
 def api_collections():
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     collections, total = get_collections(user_id, page, size)
 
@@ -238,11 +314,11 @@ def api_collections():
         'code': 0,
         'msg': 'success',
         'data': [{
-            'id': collection.id,
+            'id': collection.meta.id,
             'name': collection.name,
             'description': collection.description,
-            'document_count': collection.document_count,
-            'created': int(collection.created.timestamp() * 1000),
+            'document_count': get_relation_count_by_id("document", collection_id=collection.meta.id, status=0),
+            'created': int(datetime.fromisoformat(collection.created).timestamp() * 1000),
         } for collection in collections],
         'total': total,
     })
@@ -276,10 +352,10 @@ def api_collection_by_id(collection_id):
         'code': 0,
         'msg': 'success',
         'data': {
-            'id': collection.id,
+            'id': collection.meta.id,
             'name': collection.name,
             'description': collection.description,
-            'created': int(collection.created.timestamp() * 1000),
+            'created': collection.created_at,
         },
     })
 
@@ -312,6 +388,7 @@ def api_delete_collection_by_id(collection_id):
 def api_get_documents_by_collection_id(collection_id):
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     documents, total = get_documents_by_collection_id(user_id, collection_id, page, size)
 
@@ -319,11 +396,11 @@ def api_get_documents_by_collection_id(collection_id):
         'code': 0,
         'msg': 'success',
         'data': [{
-            'id': document.id,
+            'id': document.meta.id,
             'name': document.name,
             'path': document.path,
             'type': document.type,
-            'created': int(document.created.timestamp() * 1000),
+            'created': int(datetime.fromisoformat(document.created).timestamp() * 1000),
         } for document in documents],
         'total': total,
     })
@@ -366,6 +443,16 @@ def api_embed_documents(collection_id):
 
     # isopenai=False
     task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
+    if fileType == 'feishudoc':
+        # 飞书云文档如果是没有权限，会很快报错
+        sleep(1)
+        result = get_status_by_id(task.id)
+        if result.status == 'FAILURE':
+            logging.error('task FAILURE %r', result)
+            return jsonify({
+                'code': -1,
+                'msg': str(result.result)
+            })
 
     return jsonify({
         'code': 0,
@@ -400,6 +487,7 @@ def api_query_by_collection_id(collection_id):
     q = request.args.get('q', default='', type=str)
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到知识库或者没有权限'
@@ -407,13 +495,12 @@ def api_query_by_collection_id(collection_id):
     documents, total = query_by_collection_id(collection_id, q, page, size)
 
     app.logger.info("%r %r", documents, total)
-    app.logger.info("debug Documents %r", [(d.document, distance) for d, distance in documents])
     return jsonify({
         'code': 0,
         'msg': 'success',
         'data': [{
             'document_id': document.document_id,
-            'document_name': document.document_name,
+            # 'document_name': document.document_name,
             'document': document.document,
             'distance': distance,
             'collection_id': collection_id,
@@ -427,6 +514,7 @@ def api_query_by_document_id(document_id):
     q = request.args.get('q', default='', type=str)
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     if q:
         documents, total = query_by_document_id(document_id, q, page, size)
@@ -438,7 +526,7 @@ def api_query_by_document_id(document_id):
         'msg': 'success',
         'data': [{
             'document_id': document.document_id,
-            'document_name': document.document_name,
+            # 'document_name': document.document_name,
             'document': document.document,
             'distance': distance,
         } for document, distance in documents],
@@ -637,6 +725,7 @@ def upload():
 def get_bot_list_handler():
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
     bots, total = get_bot_list(user_id, '', page, size)
     return jsonify({

@@ -5,13 +5,13 @@ RUN sed -i "s@http://deb.debian.org@http://mirrors.aliyun.com@g" /etc/apt/source
 
 RUN apt-get update && apt-get install -y libcurl4-openssl-dev libffi-dev libxml2-dev g++\
   && pip3 install torch==2.0.1+cpu torchvision==0.15.2+cpu -f https://download.pytorch.org/whl/torch_stable.html  -i https://pypi.tuna.tsinghua.edu.cn/simple \
-  && pip3 install requests Flask gunicorn gevent bson psycopg2 Flask-Session Flask-SQLAlchemy Flask-Migrate pgvector ujson pycurl bcrypt langchain sentence_transformers celery[sqlalchemy] pdf2image pytesseract -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
-
-RUN pip3 install redis unstructured PyMuPDF bs4 openai flask[async] -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
+  && pip3 install requests Flask gunicorn gevent bson Flask-Session Flask-SQLAlchemy ujson pycurl bcrypt langchain sentence_transformers pdf2image pytesseract elasticsearch_dsl redis unstructured PyMuPDF bs4 openai flask[async] Cython flask-cors python-docx python-pptx markdown celery -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
 
 ADD ./docker/entrypoint.sh /entrypoint.sh
 ADD ./docker/wait-for-it.sh /wait-for-it.sh
 RUN chmod a+x /entrypoint.sh
+
+RUN pip3 install flasgger httpx -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
 
 # ADD ./m3e-base.tar.gz /
 ADD ./m3e-base /m3e-base
@@ -22,8 +22,6 @@ ADD ./web_base.py /usr/local/lib/python3.8/site-packages/langchain/document_load
 
 WORKDIR /server
 ENTRYPOINT ["/entrypoint.sh"]
-
-RUN pip3 install Cython flask-cors python-docx python-pptx markdown -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
 
 ADD ./setup.py /setup.py
 ADD ./server /server

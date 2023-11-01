@@ -1,5 +1,18 @@
 version: '2'
 services:
+  elasticsearch:
+    restart: always
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    volumes:
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - "9200"
+      - "9300"
+
   pgvector:
     restart: always
     image: ankane/pgvector:v0.4.4
@@ -18,22 +31,23 @@ services:
     image: redis:alpine
 
   know-server:
-    image: know-server
+    image: know-server:es
     ports:
       - "8085:80"
     volumes:
-      # - ./server:/server
+      - ./server:/server
       - ./files:/data/files
     environment:
-      - FLASK_SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@pgvector:5432/know
-      - FLASK_SESSION_TYPE=sqlalchemy
-      - FLASK_PERMANENT_SESSION_LIFETIME=86400
       - FLASK_OPENAI_API_KEY=
       - FLASK_OPENAI_API_BASE=https://azure.forkway.cn
       # - FLASK_OPENAI_API_PROXY=
       - FLASK_OPENAI_API_VERSION=2023-03-15-preview
+      - FLASK_SYSTEM_DOMAIN=http://192.168.110.81:8085
       - FLASK_SYSTEM_LOGIN_URL=http://192.168.110.81:8085/login
       - FLASK_SYSTEM_URL=http://192.168.110.81:8085/api/code2session
       - FLASK_UPLOAD_PATH=/data/files
       - FLASK_DOMAIN=http://192.168.110.81:8085
+      - FLASK_ES_HOST=elasticsearch
+      - FLASK_ES_PORT=9200
+      - FLASK_MAX_CONTENT_LENGTH=104867600
 

@@ -5,9 +5,6 @@ from time import time
 from uuid import uuid4
 from copy import deepcopy
 from datetime import datetime
-from sqlalchemy import String, text, select, and_, func
-from sqlalchemy.orm import column_property
-from pgvector.sqlalchemy import Vector
 from langchain.schema import Document, BaseRetriever
 from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.prompts.chat import (
@@ -16,317 +13,309 @@ from langchain.prompts.chat import (
     HumanMessagePromptTemplate,
     AIMessagePromptTemplate,
 )
+from elasticsearch_dsl import (
+    UpdateByQuery,
+    Search,
+    Q,
+    Boolean,
+    Date,
+    Integer,
+    Document as ESDocumentBase,
+    InnerDoc,
+    Join,
+    Keyword,
+    Long,
+    Nested,
+    Object,
+    Text,
+    connections,
+    DenseVector
+)
 from langchain.chains import ConversationalRetrievalChain, RetrievalQA
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks import get_openai_callback
-from app import db, app
+from app import app
+
+class ObjID():
+    def new_id():
+        return str(bson.ObjectId())
+    def is_valid(value):
+        return bson.ObjectId.is_valid(value)
 
 
 class NotFound(Exception): pass
 
 
-class ObjID(db.LargeBinary):
-    """基于bson.ObjectId用于mysql主键的自定义类型"""
-    def bind_processor(self, dialect):
-        def processor(value):
-            return bson.ObjectId(value).binary if bson.ObjectId.is_valid(value) else value
-
-        return processor
-
-    def result_processor(self, dialect, coltype):
-        def processor(value):
-            if not isinstance(value, bytes):
-                value = bytes(value)
-            return str(bson.ObjectId(value)) if bson.ObjectId.is_valid(value) else value
-
-        return processor
-
-    @staticmethod
-    def new_id():
-        return str(bson.ObjectId())
-
-    @staticmethod
-    def is_valid(value):
-        return bson.ObjectId.is_valid(value)
+connections.create_connection(
+    hosts=f"http://{app.config['ES_HOST']}:{app.config['ES_PORT']}",
+    # basic_auth=('elastic', '')
+)
 
 
-class JSONStr(String):
-    """自动转换 str 和 dict 的自定义类型"""
-    def bind_processor(self, dialect):
-        def processor(value):
-            try:
-                if isinstance(value, str) and (value[0] == '%' or value[-1] == '%'):
-                    # 使用like筛选的情况
-                    return value
-                return json.dumps(value, ensure_ascii=False)
-            except Exception as e:
-                logging.exception(e)
-                return value
-        return processor
+class ESDocument(ESDocumentBase):
+    @property
+    def id(self):
+        return self.meta.id
 
-    def result_processor(self, dialect, coltype):
-        def processor(value):
-            try:
-                return json.loads(value)
-            except Exception as e:
-                logging.exception(e)
-                return value
-        return processor
-
-    @staticmethod
-    def is_valid(value):
-        try:
-            json.loads(value)
-            return True
-        except Exception as e:
-            logging.exception(e)
-            return False
+    @property
+    def created_at(self):
+        return int(self.created.timestamp() * 1000)
 
 
-class User(db.Model):
-    __tablename__ = 'user'
-    id = db.Column(ObjID(12), primary_key=True)
-    openid = db.Column(db.String(128), nullable=True, comment="外部用户ID")
-    name = db.Column(db.String(128), nullable=True, comment="用户名")
-    extra = db.Column(JSONStr(1024), nullable=True, server_default=text("'{}'"), comment="用户其他字段")
-    status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
-    created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
-    modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+class User(ESDocument):
+    openid = Keyword()
+    name = Text(fields={"keyword": Keyword()})
+    status = Integer()
+    extra = Object()    # 用于保存 JSON 数据
+    created = Date()
+    modified = Date()
+
+    class Index:
+        name = 'user'
 
 
-class Collection(db.Model):
-    __tablename__ = 'collection'
-    id = db.Column(ObjID(12), primary_key=True)
-    user_id = db.Column(ObjID(12), nullable=True, comment="用户ID")
-    name = db.Column(db.String(128), nullable=True, comment="知识库名称")
-    description = db.Column(db.String(512), nullable=True, comment="知识库描述")
-    summary = db.Column(db.String(2048), nullable=True, comment="知识库摘要")
-    status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
-    created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
-    modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+class Collection(ESDocument):
+    user_id = Keyword()  # 将字符串作为文档的 ID 存储
+    name = Text(analyzer='ik_max_word')
+    description = Text(analyzer='ik_max_word')  #知识库描述
+    summary = Text(analyzer='ik_max_word')  #知识库总结
+    status = Integer()
+    created = Date()
+    modified = Date()      #
+
+    class Index:
+        name = 'collection'
 
 
-class Documents(db.Model):
-    __tablename__ = 'documents'
-    id = db.Column(ObjID(12), primary_key=True)
-    collection_id = db.Column(ObjID(12), nullable=True, comment="知识库ID")
-    type = db.Column(db.String(128), nullable=True, comment="文件类型")
-    name = db.Column(db.String(512), nullable=True, comment="文件名称")
-    path = db.Column(db.String(512), nullable=True, comment="文件地址")
-    chunks = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片数量")
-    uniqid = db.Column(db.String(128), nullable=True, comment="唯一ID")
-    summary = db.Column(db.String(2048), nullable=True, comment="文档摘要")
-    status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
-    created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
-    modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+#Documents区别于固有的Docunment
+class Documents(ESDocument):
+    collection_id = Keyword()  # 将字符串作为文档的 ID 存储
+    type = Keyword()    #文档类型用keyword保证不分词
+    path = Keyword()    #文档所在路径
+    name = Text(analyzer='ik_max_word')
+    chunks = Integer() #文档分片个数
+    uniqid = Keyword()  #去重的唯一ID
+    summary = Text(analyzer='ik_max_word')  #文档摘要
+    status = Integer()
+    created = Date()
+    modified = Date()  # 用于保存最后一次修改的时间
+    version = Integer() #文档分片个数
+
+    class Index:
+        name = 'document'
 
 
-class Embedding(db.Model):
-    __tablename__ = 'embedding'
-    id = db.Column(ObjID(12), primary_key=True)
-    document_id = db.Column(ObjID(12), nullable=True, comment="文件ID")
-    collection_id = db.Column(ObjID(12), nullable=True, comment="知识库ID")
-    chunk_index = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片索引")
-    chunk_size = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"), comment="文件分片大小")
-    document = db.Column(db.Text, nullable=True, comment="分片内容")
-    embedding = db.Column(Vector, nullable=True, comment="分片向量")
-    status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
-    created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
-    modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+class Embedding(ESDocument):
+    document_id = Keyword()     #文件ID
+    collection_id = Keyword()    #知识库ID
+    chunk_index = Keyword()    #文件分片索引
+    chunk_size = Integer()  #文件分片大小
+    document = Text(analyzer='ik_max_word')       #分片内容
+    # embedding = DenseVector(dims=768, index=True, similarity="l2_norm")
+    embedding = DenseVector(dims=768, index=True, similarity="cosine")
+    status = Integer()
+    created = Date()
+    modified = Date()  # 用于保存最后一次修改的时间
+
+    class Index:
+        name = 'embedding'
 
 
-class Bot(db.Model):
-    __tablename__ = 'bot'
-    id = db.Column(ObjID(12), primary_key=True)
-    user_id = db.Column(ObjID(12), nullable=True, comment="用户ID")
-    collection_id = db.Column(ObjID(12), nullable=True, comment="知识库ID")
-    hash = db.Column(String(128), nullable=True, comment="hash")
-    extra = db.Column(JSONStr(1024), nullable=True, server_default=text("'{}'"), comment="机器人配置信息")
-    status = db.Column(db.Integer, nullable=True, default=0, server_default=text("0"))
-    created = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow)
-    modified = db.Column(db.TIMESTAMP, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+class Bot(ESDocument):
+    user_id = Keyword()  # 用户ID
+    collection_id = Keyword()  # 知识库ID
+    hash = Keyword()    #hash
+    extra = Object()    #机器人配置信息
+    status = Integer()
+    created = Date()
+    modified = Date()  # 用于保存最后一次修改的时间
+
+    class Index:
+        name = 'bot'
+
+
+def init():
+    User.init()
+    Collection.init()
+    Documents.init()
+    Collection.init()
+    Embedding.init()
+    Bot.init()
 
 
 def get_user(user_id):
-    user = db.session.query(User).filter(
-        User.id == user_id,
-        User.status == 0,
-    ).first()
+    user = User.get(id=user_id)
     if not user:
         raise NotFound()
     return user
 
 
 def save_user(openid='', name='', **kwargs):
-    user = db.session.query(User).filter(
-        User.openid == openid,
-        User.status == 0,
-    ).first()
-    if not user:
+    s = Search(index="user").filter("term", status=0).filter("term", openid=openid)
+    response = s.execute()
+    if not response.hits.total.value :
         user = User(
-            id=ObjID.new_id(),
+            meta={'id': ObjID.new_id()},
             openid=openid,
             name=name,
+            status = 0,
             extra=kwargs,
         )
-        db.session.add(user)
-        db.session.commit()
+        user.save(refresh='wait_for')
+        return user
     else:
-        db.session.query(User).filter(User.id == user.id).update(dict(
-            openid=openid,
-            name=name,
-            extra=kwargs,
-        ), synchronize_session=False)
-        db.session.commit()
-    return user
-
-
-def query_one_page(query, page, size):
-    offset = (page - 1) * int(size)
-    return query.offset(
-        offset if offset > 0 else 0
-    ).limit(
-        size if size > 0 else 0
-    ).all()
-
-
-class CollectionWithDocumentCount(Collection):
-
-    document_count = column_property(
-        select(func.count(Documents.id)).where(and_(
-            Documents.collection_id == Collection.id,
-            Documents.status == 0,
-        ))
-    )
+        user = User.get(id=response.hits[0].meta.id)
+        extra = user.extra.to_dict() if user.extra else {}
+        extra.update(kwargs)
+        user.openid = openid
+        user.name = name
+        user.extra = extra
+        user.save(refresh='wait_for')
+        return user
 
 
 def get_collections(user_id, page, size):
-    query = db.session.query(CollectionWithDocumentCount).filter(
-        Collection.user_id == user_id,
-        Collection.status == 0,
-    )
-    total = query.count()
+    s = Search(index="collection").filter(
+        "term", user_id=user_id,
+    ).filter(
+        "term", status=0,
+    ).extra(from_=page*size-size, size=size)
+    # 执行查询
+    response = s.execute()
+    total = response.hits.total.value
+    # 返回搜索结果（文档实例的列表）
     if total == 0:
-        return [], 0
-    return query_one_page(query, page, size), total
+        return  [],0
+    return list(response), total
 
 
 def get_collection_by_id(user_id, collection_id):
-    return db.session.query(Collection).filter(
-        Collection.user_id == user_id,
-        Collection.id == collection_id,
-        Collection.status == 0,
-    ).first()
+    collection = Collection.get(id=collection_id)
+    if collection and user_id:
+        if collection.user_id == user_id:
+            return collection
+        else:
+            return None
+    else:
+        return collection
 
 
-def save_collection(user_id, name, description):
-    collection_id = ObjID.new_id()
-    db.session.add(Collection(
-        id=collection_id,
+def save_collection(user_id, name, description, collection_id=None):
+    collection_id = collection_id or ObjID.new_id()
+    collection = Collection(
+        meta={'id': collection_id},
         user_id=user_id,
         name=name,
         description=description,
         summary='',
-    ))
-    db.session.commit()
+        status=0,
+        created=datetime.now(),
+        modified=datetime.now(),
+    )
+    collection.save(refresh='wait_for')
     return collection_id
 
 
-def update_collection_by_id(user_id, collection_id, name, description):
+def get_relation_count_by_id(index, **kwargs):
+    s = Search(index=index).extra(from_=0, size=0)
+    for k, v in kwargs.items():
+        s = s.filter("term", **{k: v})
+    response = s.execute()
+    return response.hits.total.value
 
-    db.session.query(Collection).filter(
-        Collection.user_id == user_id,
-        Collection.id == collection_id,
-    ).update(dict(
-        name=name,
-        description=description,
-    ), synchronize_session=False)
-    db.session.commit()
+
+def update_collection_by_id(user_id, collection_id, name, description):
+    collection = get_collection_by_id(user_id, collection_id)
+    if not collection:
+        raise NotFound('collection not found')
+    collection.name = name
+    collection.description = description
+    collection.save(refresh='wait_for')
 
 
 def delete_collection_by_id(user_id, collection_id):
-
-    db.session.query(Collection).filter(
-        Collection.user_id == user_id,
-        Collection.id == collection_id,
-    ).update(dict(
-        status=-1,
-    ), synchronize_session=False)
-    db.session.query(Bot).filter(
-        Bot.collection_id == collection_id,
-    ).update(dict(
-        collection_id='',
-    ), synchronize_session=False)
-    db.session.commit()
+    collection = get_collection_by_id(user_id, collection_id)
+    if not collection:
+        raise NotFound('collection not found')
+    collection.status = -1
+    collection.save(refresh='wait_for')
+    bots = Search(index="bot").filter("term", collection_id=collection_id).execute()
+    for bot in bots:
+        bot.collection_id = ''
+        bot.save(refresh='wait_for')
 
 
 def get_document_id_by_uniqid(collection_id, uniqid):
-    return [did for did, in db.session.query(Documents.id).filter(
-        Documents.collection_id == collection_id,
-        Documents.uniqid == uniqid,
-        Documents.status == 0,
-    )]
+    s = Search(index="document").filter(
+        "term",
+        collection_id=collection_id,
+    ).filter(
+        "term",
+        uniqid=uniqid,
+    ).filter(
+        "term",
+        status=0
+    )
+    response = s.execute()
+    if response.hits.total.value == 0:
+        return None  # 这里不抛出异常
+        # raise NotFound()
+    # 这里的格式是需要数组
+    return [response[0].meta.id]
 
 
 def get_documents_by_collection_id(user_id, collection_id, page, size):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
-    query = db.session.query(Documents).filter(
-        Documents.collection_id == collection_id,
-        Documents.status == 0,
-    ).order_by(
-        Documents.created.desc(),
-    )
-    total = query.count()
+    s = Search(index="document").filter("term", collection_id=collection_id).filter("term", status=0).extra(from_=page*size-size, size=size).sort({"created": {"order": "desc"}})
+    response = s.execute()
+    total = response.hits.total.value
+    # 返回搜索结果（文档实例的列表）
     if total == 0:
         return [], 0
-    return query_one_page(query, page, size), total
+    return list(response), total
 
 
 def remove_document_by_id(user_id, collection_id, document_id):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
-    db.session.query(Documents).filter(
-        Documents.id == document_id,
-    ).update(dict(
-        status=-1,
-    ), synchronize_session=False)
-    db.session.query(Embedding).filter(
-        Embedding.document_id == document_id,
-    ).update(dict(
-        status=-1,
-    ), synchronize_session=False)
-    db.session.commit()
+    doc = Documents.get(id=document_id)
+    if doc:
+        doc.status=-1
+        doc.save(refresh='wait_for')
+    embeddings = Search(index='embedding').filter("term", document_id=document_id).execute()
+    for e in embeddings:
+        embedding = Embedding.get(id=e.meta.id)
+        embedding.update(status=-1)
 
 
 def purge_document_by_id(document_id):
-    db.session.query(Documents).filter(
-        Documents.id == document_id,
-    ).delete()
-    db.session.query(Embedding).filter(
-        Embedding.document_id == document_id,
-    ).delete()
-    db.session.commit()
+    doc = Documents.get(id=document_id)
+    if doc:
+        doc.delete()
+    embeddings = Search(index='embedding').filter("term", document_id=document_id).execute()
+    for e in embeddings:
+        embedding = Embedding.get(id=e.meta.id)
+        embedding.delete()
 
 
 def set_document_summary(document_id, summary):
-    db.session.query(Documents).filter(
-        Documents.id == document_id,
-    ).update(dict(summary=summary))
-    db.session.commit()
+    doc = Documents.get(id=document_id)
+    if doc:
+        doc.summary = summary
+        doc.save(refresh='wait_for')
 
 
 def get_document_by_id(document_id):
-    return db.session.query(Documents).filter(
-        Documents.id == document_id,
-    ).first()
+    doc = Documents.get(id=document_id)
+    return doc if doc else None
 
 
-def save_document(collection_id, name, url, chunks, type, uniqid=None):
-    did = ObjID.new_id()
-    db.session.add(Documents(
-        id=did,
+def save_document(collection_id, name, url, chunks, type, uniqid=None, version=0, document_id=None):
+    did = document_id or ObjID.new_id()
+    doc = Documents(
+        meta={'id': did},
         collection_id=collection_id,
         type=type,
         name=name,
@@ -334,141 +323,198 @@ def save_document(collection_id, name, url, chunks, type, uniqid=None):
         chunks=chunks,
         uniqid=uniqid,
         summary='',
-    ))
-    db.session.commit()
+        status=0,
+        version=version,
+        created=datetime.now(),
+        modified=datetime.now(),
+    )
+    doc.save(refresh='wait_for')
     return did
-
 
 def save_embedding(collection_id, document_id, chunk_index, chunk_size, document, embedding):
     eid = ObjID.new_id()
-    app.logger.info("debug save_embedding %r", len(embedding))
-    db.session.add(Embedding(
-        id=eid,
+    embedding = Embedding(
+        meta={'id': eid},
         collection_id=collection_id,
         document_id=document_id,
         chunk_index=chunk_index,
         chunk_size=chunk_size,
         document=document,
         embedding=embedding,
-    ))
-    db.session.commit()
+        status=0,
+        created=datetime.now(),
+        modified=datetime.now(),
+    )
+    embedding.save()
     return eid
 
-
-def get_bot_list(user_id, collection_id, page, size):
-    query = db.session.query(Bot).filter(
-        Bot.user_id == user_id,
-        Bot.collection_id == collection_id if collection_id else True,
-        Bot.status > -1,
-    ).order_by(
-        Bot.created.desc(),
-    )
-    total = query.count()
+def get_bot_list(user_id, collection_id):
+    s = Search(index="bot").filter(
+        "term",
+        user_id=user_id,
+        collection_id=collection_id,
+    ).filter(
+        "terms",
+        status=[0, 1]
+    ).sort({"created": {"order": "desc"}})
+    response = s.execute()
+    total = response.hits.total.value
+    # 返回搜索结果（文档实例的列表）
     if total == 0:
         return [], 0
-    return query_one_page(query, page, size), total
+    return list(response), total
+
 
 
 def get_bot_by_hash(hash):
-    bot = db.session.query(Bot).filter(
-        Bot.hash == hash,
-        # Bot.status == 1,
-    ).first()
-    if not bot:
-        raise NotFound()
-    return bot
-
-
-def create_bot(user_id, collection_id, **extra):
-    # 移除这个逻辑
-    # if db.session.query(Bot.id).filter(
-    #     Bot.collection_id == collection_id,
-    #     Bot.status >= 0,
-    # ).limit(1).scalar():
-    #     raise Exception('already create bot')
-    hash = str(uuid4())
-    db.session.add(Bot(
-        id=ObjID.new_id(),
-        user_id=user_id,
-        collection_id=collection_id,
+    bot = Search(index="bot").filter(
+        "term",
         hash=hash,
-        extra=extra,
-        status=1,  # 启用
-    ))
-    db.session.commit()
-    return hash
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    return bot[0]
 
 
-def update_bot_by_hash(hash, action='', collection_id='', **extra):
-    # 如果是action，可以只传一个参数。
-    # 更新的时候和前面的创建接口使用类似的参数。
-    bot_id = db.session.query(Bot.id).filter(
-        Bot.hash == hash if hash else '',
-        Bot.status >= 0,
+def get_bot_by_hash(hash):
+    bot = Search(index="bot").filter(
+        "term",
+        hash=hash,
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    return bot[0]
+
+def query_by_collection_id(collection_id, q, page, size, delta=None):
+    from tasks import embed_query
+    embed = embed_query(q)
+    filter_ = [{
+        "term": { "collection_id": collection_id },
+    }, {
+        "term": { "status": 0 },
+    }]
+    return _query_by_filter_and_embed(
+        q, filter_, embed, page, size,
+        delta=float(app.config['DELTA'] if delta is None else delta),
     )
-    # action=start/stop/remove/refresh
-    if action == 'refresh':
-        hash = str(uuid4())
-        db.session.query(Bot).filter(
-            Bot.id == bot_id,
-        ).update(dict(hash=hash), synchronize_session=False)
-        db.session.commit()
-        return hash
-    elif action:
-        if 'start' == action:
-            status = 1
-        elif 'remove' == action:
-            status = -1
-        else:
-            status = 0
-        db.session.query(Bot).filter(
-            Bot.id == bot_id,
-        ).update(dict(status=status), synchronize_session=False)
-        db.session.commit()
-        return status
-    elif collection_id:
-        db.session.query(Bot).filter(
-            Bot.id == bot_id,
-        ).update(dict(
-            collection_id=collection_id,
-            extra=extra,
-        ), synchronize_session=False)
-        db.session.commit()
-        return True
 
+def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
+    s = Search().from_dict({
+        "query": {
+            "bool": {
+                "must": [
+                    {
+                        "match": {
+                            "document": {
+                                "query": q,
+                                "boost": 0.00001
+                            }
+                        },
+                    },
+                    {
+                        "bool":{
+                            "filter": filter_
+                        }
+                    }
+                ]
+            }
+        },
+        "knn": {
+            "filter": filter_,
+            "field": "embedding",
+            "query_vector": embed,
+            "k": size,
+            "num_candidates": 50,
+            "boost": 1.0
+        },
+        "size": size * 2,
+        "explain": True,
+        "_source": ["document", "document_id", "collection_id"],
+    }).index("embedding")
+
+    # app.logger.info("debug knn Search %r", s.to_dict())
+    response = s.execute()
+    total = response.hits.total.value
+    """
+    1. 如果关键词能命中topk以外的, total > k
+       如果命中的比较多，total > k * 2
+    2. 如果关键词不能命中（或者关键词命中的刚好在topk里面）  total == k
+    """
+    # TODO 排序+格式化
+    response_map = {i.meta.id: i for i in response}
+    # TODO 模拟排序
+    explanation = []
+    min, max = 10000, 0
+    for i in response:
+        details = i.meta.explanation.details
+        topk = list(filter(lambda d: 'top k' in d.description, details))
+        topk = topk[0].value if len(topk) > 0 else 0
+        match = list(filter(lambda d: 'sum of' in d.description, details))
+        match = match[0].value if len(match) > 0 else 0
+        min = match if match < min else min
+        max = match if match > max else max
+        explanation.append({
+            'id': i.meta.id,
+            'topk': topk,
+            'match': match,
+        })
+
+    for exp in explanation:
+        exp['stand_score'] = (exp['match'] - min) / ((max - min) or 1)
+        exp['score'] = delta * exp['topk'] + (1 - delta) * exp['stand_score']
+
+    explanation = sorted(explanation, key=lambda e: e["score"], reverse=True)
+    app.logger.info("debug score %r", explanation)
+    result = []
+    for exp in explanation:
+        item = response_map[exp['id']]
+        result.append((item, exp['score']))
+    
+    return result[:size], total
 
 def get_collection_id_by_hash(hash):
-    bot = db.session.query(Bot).filter(
-        Bot.hash == hash,
-        Bot.status == 1,  # 这里是前端使用的，需要启用链接才能使用
-    ).first()
-    if bot:
-        # 校验当前用户的权限是否正常
-        user = db.session.query(User).filter(
-            User.id == bot.user_id,
-        ).first()
-        if user:
-            extra = user.extra
-            expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
-            privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
-            if privilege and int(expires or 0) > time():
-                return bot.collection_id
-    return None
-
+    bot = Search(index="bot").filter(
+        "term",
+        hash=hash,
+    ).filter(
+        "term",
+        status=0
+    ).execute()
+    try:
+        if bot.hits.total.value == 0:
+            raise NotFound()
+        user = get_user(bot[0].user_id)
+        extra = user.extra.to_dict()
+        expires = extra.get('exp_time', extra.get('permission', {}).get('expires', 0))
+        privilege = extra.get('active', extra.get('permission', {}).get('has_privilege', False))
+        if privilege and int(expires or 0) > time():
+            return bot[0].collection_id
+    except Exception as e:
+        return None
 
 def get_hash_by_collection_id(collection_id):
-    hash = db.session.query(Bot.hash).filter(
-        Bot.collection_id == collection_id,
-        Bot.status >= 0,
-    ).limit(1).scalar()
-    return hash
-
+    bot = Search(index="bot").filter(
+        "term",
+        collection_id=collection_id,
+    ).filter(
+        "range",
+        status={"gte": 0}
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    return bot[0].hash
 
 def get_data_by_hash(hash, json):
-    extra = db.session.query(Bot.extra).filter(
-        Bot.hash == hash,
-        Bot.status >= 0,
-    ).limit(1).scalar()
+    bot = Search(index="bot").filter(
+        "term",
+        hash=hash,
+    ).filter(
+        "range",
+        status={"gte": 0}
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    extra = bot[0].extra.to_dict()
     if extra:
         messages = json.get('messages', [])
         if extra.get('prompt', ''):
@@ -483,77 +529,82 @@ def get_data_by_hash(hash, json):
         )
     return json
 
-
-class EmbeddingWithDocument(Embedding):
-
-    document_name = column_property(
-        select(Documents.name).where(and_(
-            Documents.id == Embedding.document_id,
-        )).limit(1)
+def create_bot(user_id, collection_id, **extra):
+    hash = str(uuid4())
+    bot = Bot(
+        meta={'id': ObjID.new_id()},
+        user_id=user_id,
+        collection_id=collection_id,
+        hash=hash,
+        extra=extra,
+        status=1,  # 启用
+        created=datetime.now(),
+        modified=datetime.now(),
     )
+    bot.save(refresh='wait_for')
+    return hash
 
+def update_bot_by_hash(hash, action='', collection_id='', **extra):
+    bot = Search(index="bot").filter(
+        "term",
+        hash=hash,
+    ).filter(
+        "range",
+        status={"gte": 0}
+    ).execute()
+    if bot.hits.total.value == 0:
+        raise NotFound()
+    bot = bot[0]
+    # 如果是action，可以只传一个参数。
+    # 更新的时候和前面的创建接口使用类似的参数。
+    # action=start/stop/remove/refresh
+    if action == 'refresh':
+        hash = str(uuid4())
+        bot.hash = hash
+        bot.save(refresh='wait_for')
+        return hash
+    elif action:
+        if 'start' == action:
+            status = 1
+        elif 'remove' == action:
+            status = -1
+        else:
+            status = 0
+        bot.status = status
+        bot.save(refresh='wait_for')
+        return status
+    elif collection_id:
+        bot.collection_id = collection_id
+        bot.extra = extra
+        bot.save(refresh='wait_for')
+        return True
 
-def query_by_collection_id(collection_id, q, page, size):
+def query_by_document_id(document_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
-    # Embedding.embedding.l2_distance(embed),
-    # Embedding.embedding.max_inner_product(embed),
-    column = Embedding.embedding.cosine_distance(embed)
-    # column = Embedding.embedding.l2_distance(embed)
-    # column = Embedding.embedding.max_inner_product(embed)
-    query = db.session.query(
-        EmbeddingWithDocument,
-        column.label('distinct'),
-    ).filter(
-        Embedding.collection_id == collection_id,
-        Embedding.status == 0,
-    ).order_by(
-        column,
+    filter_ = [{
+        "term": { "document_id": document_id },
+    }, {
+        "term": { "status": 0 },
+    }]
+    return _query_by_filter_and_embed(
+        q, filter_, embed, page, size,
+        delta=float(app.config['DELTA'] if delta is None else delta),
     )
-    total = query.count()
-    if total == 0:
-        return [], 0
-    return query_one_page(query, page, size), total
-
 
 def get_docs_by_document_id(document_id, page, size):
-    query = db.session.query(
-        EmbeddingWithDocument,
-        # 这里是为了和后面的query_by_document_id保持结构兼容
-        Embedding.chunk_index,
+    s = Search(index="embedding").filter(
+        "term", document_id=document_id
     ).filter(
-        Embedding.document_id == document_id,
-        Embedding.status == 0,
-    ).order_by(
-        Embedding.chunk_index.asc(),
-    )
-    total = query.count()
+        "term", status=0
+    ).extra(from_=page*size-size, size=size).sort({"chunk_index": {"order": "asc"}})
+    # 执行查询
+    response = s.execute()
+    total = response.hits.total.value
+    # 返回搜索结果（文档实例的列表）
     if total == 0:
-        return [], 0
-    return query_one_page(query, page, size), total
-
-
-def query_by_document_id(document_id, q, page, size):
-    from tasks import embed_query
-    embed = embed_query(q)
-    # Embedding.embedding.l2_distance(embed),
-    # Embedding.embedding.max_inner_product(embed),
-    column = Embedding.embedding.cosine_distance(embed)
-    # column = Embedding.embedding.l2_distance(embed)
-    # column = Embedding.embedding.max_inner_product(embed)
-    query = db.session.query(
-        EmbeddingWithDocument,
-        column.label('distinct'),
-    ).filter(
-        Embedding.document_id == document_id,
-        Embedding.status == 0,
-    ).order_by(
-        column,
-    )
-    total = query.count()
-    if total == 0:
-        return [], 0
-    return query_one_page(query, page, size), total
+        return  [], 0
+    return [(i, i.meta.score) for i in response], total
 
 
 class Retriever(BaseRetriever):
