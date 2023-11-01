@@ -187,12 +187,16 @@ class LarkDocLoader(object):
                 res = self.client.get(url).json()
                 if 'data' not in res or 'node' not in res['data']:
                     app.logger.error("error get node %r", res)
-                    raise Exception(f'error get node {document_id}')
+                    if res['code'] == 131006:
+                        raise Exception('「企联 AI 飞书助手」应用权限配置不正确，请检查以后重新配置')
+                    raise Exception('「企联 AI 飞书助手」无该文档访问权限')
                 document_id = res['data']['node']['obj_token']
                 type_ = res['data']['node']['obj_type']
 
             if type_ not in ['docx', 'doc']:
-                raise Exception(f'unsupport type {type_}')
+                app.logger.error("unsupport type %r", type_)
+                raise Exception('「企联 AI 飞书助手」无该文档访问权限')
+                # raise Exception(f'unsupport type {type_}')
         self.document_id = document_id
         # TODO (文档只有所有者可以订阅) 查询订阅状态
         # url = f"{self.client.host}/open-apis/drive/v1/files/{document_id}/get_subscribe?file_type={type_}"
@@ -209,7 +213,8 @@ class LarkDocLoader(object):
         res = self.client.get(url).json()
         if 'data' not in res or 'content' not in res['data']:
             app.logger.error("error get content %r", res)
-            raise Exception(f'error get content for document')
+            raise Exception('「企联 AI 飞书助手」无该文档访问权限')
+            # raise Exception(f'error get content for document')
         return Document(page_content=res['data']['content'], metadata=dict(
             fileUrl=self.fileUrl,
             document_id=self.document_id,
