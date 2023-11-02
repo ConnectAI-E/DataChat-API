@@ -8,7 +8,7 @@ import requests
 import threading
 from functools import partial
 from uuid import uuid4
-from time import time, sleep
+from time import time
 from datetime import datetime
 from urllib.parse import quote, unquote
 from flask import request, session, jsonify, Response, copy_current_request_context, redirect, make_response, send_file
@@ -43,6 +43,7 @@ from models import (
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
+from tasks import LarkDocLoader
 
 
 class InternalError(Exception): pass
@@ -295,7 +296,10 @@ def api_get_collection_client():
 def api_save_collection_client():
     app_id = request.json.get('app_id')
     user = get_user(session.get('user_id', ''))
-    save_user(openid=user.openid, name=user.name, client=request.json)
+    extra = user.extra.to_dict() if user.extra else {}
+    client = extra.get('client', {})
+    client.update(request.json)
+    save_user(openid=user.openid, name=user.name, client=client)
     return jsonify({
         'code': 0,
         'msg': 'success',
@@ -441,19 +445,23 @@ def api_embed_documents(collection_id):
                 },
             })
 
-    # isopenai=False
-    task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
     if fileType == 'feishudoc':
-        # 飞书云文档如果是没有权限，会很快报错
-        sleep(1)
-        result = get_status_by_id(task.id)
-        if result.status == 'FAILURE':
-            logging.error('task FAILURE %r', result)
+        # 如果是飞书文档，同步尝试load一下，失败了就同步报错
+        try:
+            collection = get_collection_by_id(None, collection_id)
+            user = get_user(user_id)
+            extra = user.extra.to_dict()
+            client = extra.get('client', {})
+            loader = LarkDocLoader(fileUrl, None, **client)
+            doc = loader.load()
+        except Exception as e:
+            app.logger.error(e)
             return jsonify({
                 'code': -1,
-                'msg': str(result.result)
+                'msg': str(e)
             })
-
+    # isopenai=False
+    task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
     return jsonify({
         'code': 0,
         'msg': 'success',
