@@ -296,6 +296,8 @@ def api_get_collection_client():
 def api_save_collection_client():
     app_id = request.json.get('app_id')
     user = get_user(session.get('user_id', ''))
+    request.json.setdefault('encript_key', 'e-fJKrqNbSz9NqSWL5')
+    request.json.setdefault('validation_token', 'v-Ohw8k6KwVynNmzXX')
     save_user(openid=user.openid, name=user.name, client=request.json)
     return jsonify({
         'code': 0,
