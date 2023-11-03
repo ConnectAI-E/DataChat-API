@@ -54,6 +54,11 @@ connections.create_connection(
 
 
 class ESDocument(ESDocumentBase):
+
+    status = Integer()
+    created = Date()
+    modified = Date()
+
     @property
     def id(self):
         return self.meta.id
@@ -62,14 +67,19 @@ class ESDocument(ESDocumentBase):
     def created_at(self):
         return int(self.created.timestamp() * 1000)
 
+    def save(self, *args, **kwargs):
+        if self.created is None:
+            self.created = datetime.now()
+        if self.status is None:
+            self.status = 0
+        self.modified = datetime.now()
+        super().save(*args, **kwargs)
+
 
 class User(ESDocument):
     openid = Keyword()
     name = Text(fields={"keyword": Keyword()})
-    status = Integer()
     extra = Object()    # 用于保存 JSON 数据
-    created = Date()
-    modified = Date()
 
     class Index:
         name = 'user'
@@ -80,9 +90,6 @@ class Collection(ESDocument):
     name = Text(analyzer='ik_max_word')
     description = Text(analyzer='ik_max_word')  #知识库描述
     summary = Text(analyzer='ik_max_word')  #知识库总结
-    status = Integer()
-    created = Date()
-    modified = Date()      #
 
     class Index:
         name = 'collection'
@@ -97,9 +104,6 @@ class Documents(ESDocument):
     chunks = Integer() #文档分片个数
     uniqid = Keyword()  #去重的唯一ID
     summary = Text(analyzer='ik_max_word')  #文档摘要
-    status = Integer()
-    created = Date()
-    modified = Date()  # 用于保存最后一次修改的时间
     version = Integer() #文档分片个数
 
     class Index:
@@ -112,11 +116,7 @@ class Embedding(ESDocument):
     chunk_index = Keyword()    #文件分片索引
     chunk_size = Integer()  #文件分片大小
     document = Text(analyzer='ik_max_word')       #分片内容
-    # embedding = DenseVector(dims=768, index=True, similarity="l2_norm")
     embedding = DenseVector(dims=768, index=True, similarity="cosine")
-    status = Integer()
-    created = Date()
-    modified = Date()  # 用于保存最后一次修改的时间
 
     class Index:
         name = 'embedding'
@@ -127,9 +127,6 @@ class Bot(ESDocument):
     collection_id = Keyword()  # 知识库ID
     hash = Keyword()    #hash
     extra = Object()    #机器人配置信息
-    status = Integer()
-    created = Date()
-    modified = Date()  # 用于保存最后一次修改的时间
 
     class Index:
         name = 'bot'
@@ -168,7 +165,16 @@ def save_user(openid='', name='', **kwargs):
         user = User.get(id=response.hits[0].meta.id)
         extra = user.extra.to_dict() if user.extra else {}
         extra.update(kwargs)
-        user.update(refresh='wait_for', retry_on_conflict=3, openid=openid, name=name, extra=extra)
+        # 保存后，里面要用这里变量
+        user.openid = openid
+        user.name = name
+        user.extra = extra
+        user.update(
+            refresh='wait_for',
+            retry_on_conflict=3,
+            openid=openid, name=name, extra=extra,
+            modified=datetime.now(),
+        )
         return user
 
 
@@ -238,7 +244,8 @@ def delete_collection_by_id(user_id, collection_id):
     collection.status = -1
     collection.save(refresh='wait_for')
     bots = Search(index="bot").filter("term", collection_id=collection_id).execute()
-    for bot in bots:
+    for b in bots:
+        bot = Bot.get(id=b.meta.id)
         bot.collection_id = ''
         bot.save(refresh='wait_for')
 
@@ -320,8 +327,8 @@ def save_document(collection_id, name, url, chunks, type, uniqid=None, version=0
         chunks=chunks,
         uniqid=uniqid,
         summary='',
-        status=0,
         version=version,
+        status=0,
         created=datetime.now(),
         modified=datetime.now(),
     )
