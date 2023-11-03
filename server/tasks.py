@@ -6,7 +6,7 @@ from time import time
 from datetime import timedelta
 from celery import Celery
 from app import app
-from models import save_document, save_embedding, ObjID
+from models import save_document, save_embedding, purge_document_by_id, ObjID
 from langchain.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 from langchain.document_loaders import (
