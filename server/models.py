@@ -165,6 +165,10 @@ def save_user(openid='', name='', **kwargs):
         user = User.get(id=response.hits[0].meta.id)
         extra = user.extra.to_dict() if user.extra else {}
         extra.update(kwargs)
+        # 保存后，里面要用这里变量
+        user.openid = openid
+        user.name = name
+        user.extra = extra
         user.update(
             refresh='wait_for',
             retry_on_conflict=3,
