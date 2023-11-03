@@ -73,7 +73,7 @@ class ESDocument(ESDocumentBase):
         if self.status is None:
             self.status = 0
         self.modified = datetime.now()
-        super().__init__(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class User(ESDocument):
