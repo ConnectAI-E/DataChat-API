@@ -30,5 +30,5 @@ RUN cd / && python3 setup.py build_ext
 RUN cd /server && rm *.c tasks.py sse.py models.py app.py && cp ../build/lib.linux-x86_64-3.8/* ./
 
 
-CMD ["gunicorn", "--worker-class=gevent", "--workers", "8", "--bind", "0.0.0.0:80", "-t", "600", "--keep-alive", "60", "--log-level=debug", "server:app"]
+CMD ["gunicorn", "--worker-class=gevent", "--workers", "1", "--bind", "0.0.0.0:80", "-t", "600", "--keep-alive", "60", "--log-level=debug", "server:app"]
 
