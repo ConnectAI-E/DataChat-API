@@ -82,6 +82,7 @@ def after_request_callback(response):
 def before_request_callback(): 
     request.environ['REQUEST_TIME'] = time()
     if request.path in [
+        '/api/file',
         '/api/access_token',
         '/api/login', '/login', '/api/code2session',
         '/', '/favicon.ico',
