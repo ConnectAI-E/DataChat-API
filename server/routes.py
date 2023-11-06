@@ -82,7 +82,6 @@ def after_request_callback(response):
 def before_request_callback(): 
     request.environ['REQUEST_TIME'] = time()
     if request.path in [
-        '/api/file',
         '/api/access_token',
         '/api/login', '/login', '/api/code2session',
         '/', '/favicon.ico',
@@ -93,6 +92,8 @@ def before_request_callback():
         return
     if '/embed' in request.path and '/chat/completions' in request.path:
         # 这个接口不使用session校验，而是通过hash判断是否可用
+        return
+    if '/api/file' in request.path:
         return
     access_token = session.get('access_token', '')
     expired = session.get('expired', 0)
