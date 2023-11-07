@@ -62,7 +62,6 @@ def request_data(params):
         else:
             print(f"请求失败，状态码: {response.status_code}")
 
-
     # else: # 获取所有的知识库的列表
     #     namespace = params[0]
     #     path_segments = namespace[0].strip('/').split('/')

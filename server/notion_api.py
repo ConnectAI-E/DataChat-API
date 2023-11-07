@@ -108,7 +108,6 @@ def get_text_from_block(block):
     # return f"{block['type']}: {text}"
 
 
-
 async def retrieve_block_children(page_id):
 
     """
