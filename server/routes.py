@@ -277,16 +277,19 @@ def get_account():
     })
 
 
-@app.route('/api/collection/client', methods=['GET'])
-def api_get_collection_client():
+@app.route('/api/collection/<platform>', methods=['GET'])
+def api_get_collection_client(platform):
+    if platform not in ['feishu', 'yuque', 'notion']:
+        raise InternalError('error platform')
     user = get_user(session.get('user_id', ''))
     extra = user.extra.to_dict()
-    client = extra.get('client', {})
-    callback_url = f'{app.config["SYSTEM_DOMAIN"]}/feishu/{user.openid}'
-    client['callback_url'] = {
-        'card': callback_url + '/card',
-        'event': callback_url + '/event',
-    }
+    client = extra.get(platform, {})
+    if platform == 'feishu':
+        callback_url = f'{app.config["SYSTEM_DOMAIN"]}/feishu/{user.openid}'
+        client['callback_url'] = {
+            'card': callback_url + '/card',
+            'event': callback_url + '/event',
+        }
     return jsonify({
         'code': 0,
         'msg': 'success',
@@ -294,42 +297,16 @@ def api_get_collection_client():
     })
 
 
-@app.route('/api/collection/client', methods=['POST'])
-def api_save_collection_client():
+@app.route('/api/collection/<platform>', methods=['POST'])
+def api_save_collection_client(platform):
+    if platform not in ['feishu', 'yuque', 'notion']:
+        raise InternalError('error platform')
     app_id = request.json.get('app_id')
     user = get_user(session.get('user_id', ''))
     extra = user.extra.to_dict() if user.extra else {}
-    client = extra.get('client', {})
+    client = extra.get(platform, {})
     client.update(request.json)
-    save_user(openid=user.openid, name=user.name, client=client)
-    return jsonify({
-        'code': 0,
-        'msg': 'success',
-    })
-
-
-@app.route('/api/collection/yuque', methods=['POST'])
-def api_save_collection_yuque():
-    app_id = request.json.get('app_id')
-    user = get_user(session.get('user_id', ''))
-    extra = user.extra.to_dict() if user.extra else {}
-    yuque = extra.get('yuque', {})
-    yuque.update(request.json)
-    save_user(openid=user.openid, name=user.name, yuque=yuque)
-    return jsonify({
-        'code': 0,
-        'msg': 'success',
-    })
-
-
-@app.route('/api/collection/notion', methods=['POST'])
-def api_save_collection_client():
-    app_id = request.json.get('app_id')
-    user = get_user(session.get('user_id', ''))
-    extra = user.extra.to_dict() if user.extra else {}
-    notion = extra.get('notion', {})
-    notion.update(request.json)
-    save_user(openid=user.openid, name=user.name, notion=notion)
+    save_user(openid=user.openid, name=user.name, **{platform=client})
     return jsonify({
         'code': 0,
         'msg': 'success',
