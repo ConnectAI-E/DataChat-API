@@ -3,7 +3,7 @@ import httpx
 from functools import cached_property
 from tempfile import NamedTemporaryFile
 from time import time
-from datetime import timedelta
+from datetime import timedelta, datetime
 from celery import Celery
 from app import app
 from models import save_document, save_embedding, purge_document_by_id, ObjID
@@ -64,6 +64,11 @@ celery.conf.beat_schedule = {
         # "schedule": 10.0, # 每10秒执行一次
         # "schedule": crontab(minute='*/1'), # 定时每分钟执行一次
         # 使用的是crontab表达式
+        "args": (False) # 函数传参的值
+    },
+    "sync_yuque": {
+        "task": "celery_app.sync_yuque",
+        "schedule": timedelta(seconds=3610), # 定时1hours执行一次，避免任务一起执行，占资源
         "args": (False) # 函数传参的值
     }
 }
@@ -170,6 +175,7 @@ class Lark(object):
     def post(self, url, **kwargs):
         return self.request('POST', url, **kwargs)
 
+
 class LarkDocLoader(object):
     def __init__(self, fileUrl, document_id, **kwargs):
         app.logger.info("debug %r", kwargs)
@@ -237,5 +243,54 @@ class LarkDocLoader(object):
         app.logger.info("debug file_info %r %r", url, res)
         return res.get('data', {}).get('document', {})
 
+
+class YuqueDocLoader(object):
+
+    def __init__(self, fileUrl, **kwargs):
+        # https://www.yuque.com/yuque/developer/doc
+        # https://www.yuque.com/stopgivingafucks/lm15dv/zwkh4sdwnibr19qq
+        temp = fileUrl.split('?')[0].split('/')
+        self.namespace = '/'.join(temp[-3:-1])
+        self.slug = temp[-1]
+        self.config = kwargs
+
+    def load(self):
+        # -L To follow redirect with Curl
+        # curl -L -X "POST" "https://www.yuque.com/api/v2/..." \
+        #      -H 'User-Agent: your_name' \
+        #      -H 'X-Auth-Token: your_token' \
+        #      -H 'Content-Type: application/json' \
+        #      -d $'{}'
+        # GET /repos/:namespace/docs/:slug
+        url = f"https://www.yuque.com/api/v2/repos/{self.namespace}/docs/{self.slug}"
+        res = httpx.get(url, headers={'X-Auth-Token': self.config.get('token')}).json()
+        if 'data' not in res or 'body' not in res['data']:
+            app.logger.error("error get content %r", res)
+            raise Exception('「企联 AI 语雀助手」无该文档访问权限')
+            # raise Exception(f'error get content for document')
+        markdown_content = res['data']['body']
+        with NamedTemporaryFile(delete=False) as f:
+            f.write(markdown_content)
+            f.close()
+            # 拿到markdown_content，然后使用markdown loader重新解析一遍真实内容
+            loader = UnstructuredMarkdownLoader(f.name, {})
+            docs = loader.load()
+            os.unlink(f.name)
+            # 这里只有单个文件
+            return Document(
+                page_content='\n'.join([d.page_content for d in docs]),
+                # ● id - 文档编号● slug - 文档路径● title - 标题● book_id - 仓库编号，就是 repo_id
+                # ● ormat - 描述了正文的格式 [lake , markdown]● body - 正文 Markdown 源代码
+                # content_updated_at - 文档内容更新时间
+                metadata=dict(
+                    fileUrl=self.fileUrl,
+                    id=res['data']['id'],
+                    slug=res['data']['slug'],
+                    title=res['data']['title'],
+                    # 唯一ID，用于区分
+                    uniqid=f"{self.namespace}/{self.slug}",
+                    modified=datetime.fromisoformat(res['data']['content_updated_at'].split('.')[0]),
+                )
+            )
 
 

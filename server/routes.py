@@ -43,7 +43,7 @@ from models import (
 )
 from celery_app import embed_documents, get_status_by_id
 from sse import ServerSentEvents
-from tasks import LarkDocLoader
+from tasks import LarkDocLoader, YuqueDocLoader
 
 
 class InternalError(Exception): pass
@@ -308,6 +308,34 @@ def api_save_collection_client():
     })
 
 
+@app.route('/api/collection/yuque', methods=['POST'])
+def api_save_collection_yuque():
+    app_id = request.json.get('app_id')
+    user = get_user(session.get('user_id', ''))
+    extra = user.extra.to_dict() if user.extra else {}
+    yuque = extra.get('yuque', {})
+    yuque.update(request.json)
+    save_user(openid=user.openid, name=user.name, yuque=yuque)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+    })
+
+
+@app.route('/api/collection/notion', methods=['POST'])
+def api_save_collection_client():
+    app_id = request.json.get('app_id')
+    user = get_user(session.get('user_id', ''))
+    extra = user.extra.to_dict() if user.extra else {}
+    notion = extra.get('notion', {})
+    notion.update(request.json)
+    save_user(openid=user.openid, name=user.name, notion=notion)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+    })
+
+
 @app.route('/api/collection', methods=['GET'])
 def api_collections():
     page = request.args.get('page', default=1, type=int)
@@ -455,6 +483,21 @@ def api_embed_documents(collection_id):
             extra = user.extra.to_dict()
             client = extra.get('client', {})
             loader = LarkDocLoader(fileUrl, None, **client)
+            doc = loader.load()
+        except Exception as e:
+            app.logger.error(e)
+            return jsonify({
+                'code': -1,
+                'msg': str(e)
+            })
+    elif fileType == 'yuque':
+        # 如果是语雀文档，同步尝试load一下，失败了就同步报错
+        try:
+            collection = get_collection_by_id(None, collection_id)
+            user = get_user(user_id)
+            extra = user.extra.to_dict()
+            yuque = extra.get('yuque', {})
+            loader = YuqueDocLoader(fileUrl, **yuque)
             doc = loader.load()
         except Exception as e:
             app.logger.error(e)
