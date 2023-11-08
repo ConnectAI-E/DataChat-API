@@ -306,7 +306,7 @@ def api_save_collection_client(platform):
     extra = user.extra.to_dict() if user.extra else {}
     client = extra.get(platform, {})
     client.update(request.json)
-    save_user(openid=user.openid, name=user.name, **{platform=client})
+    save_user(openid=user.openid, name=user.name, **{platform: client})
     return jsonify({
         'code': 0,
         'msg': 'success',
