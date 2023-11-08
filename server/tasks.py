@@ -70,12 +70,12 @@ celery.conf.beat_schedule = {
     },
     "sync_yuque": {
         "task": "celery_app.sync_yuque",
-        "schedule": timedelta(seconds=3610), # 定时1hours执行一次，避免任务一起执行，占资源
+        "schedule": timedelta(seconds=3700), # 定时1hours执行一次，避免任务一起执行，占资源
         "args": (False) # 函数传参的值
     },
     "sync_notion": {
         "task": "celery_app.sync_notion",
-        "schedule": timedelta(seconds=3610),  # 定时1hours执行一次，避免任务一起执行，占资源
+        "schedule": timedelta(seconds=3800),  # 定时1hours执行一次，避免任务一起执行，占资源
         "args": (False)  # 函数传参的值
     }
 }
@@ -254,6 +254,7 @@ class LarkDocLoader(object):
 class YuqueDocLoader(object):
 
     def __init__(self, fileUrl, **kwargs):
+        self.fileUrl = fileUrl
         # https://www.yuque.com/yuque/developer/doc
         temp = fileUrl.split('?')[0].split('/')
         self.namespace = '/'.join(temp[-3:-1])
@@ -304,12 +305,12 @@ class NotionDocLoader(object):
     def __init__(self, fileUrl, **kwargs):
         # https://www.notion.so/b1-8beaa48d081e44e69000cd789726a151?pvs=4
         # https://www.notion.so/b1-8beaa48d081e44e69000cd789726a151
+        self.fileUrl = fileUrl
         self.page_id, self.title = self.extract_ids(fileUrl)[0], self.extract_ids(fileUrl)[1]
         self.config = kwargs
 
     # notion文档的标题在链接里面，id也需要加入分号分割，需要单独做一个操作
     def extract_ids(self, link):
-        id, list = [], []
         # 解析URL
         parsed_url = urlparse(link)
         # 从URL的路径中提取ID
@@ -319,19 +320,17 @@ class NotionDocLoader(object):
         # 获取后32位
         id = ids[-32:-24] + '-' + ids[-24:-20] + '-' + ids[-20:-16] + '-' + ids[-16:-12] + '-' + ids[-12:]
         title = ids[:-33]
-        list.append(id)  # page_id页面
-        list.append(title) # 文档标题
-        return list
+        return id, title
 
     def retrieve_block_children(self):
         """
             这里的  url  是接受处理过的id号拼接为的接口地址
         """
         url = f"https://api.notion.com/v1/blocks/{self.page_id}/children"
-        self.old_fileurl = url
+
         # notion的版本可能会有更新的问题
         headers = {
-            "Authorization": 'Bearer secret_j8nkz86I0vFVoVKN107SEQFKOW1MtSe9DflGfYh4w9L',
+            "Authorization": self.config.get('token'),
             "Notion-Version": '2022-06-28'
         }
 
@@ -343,7 +342,7 @@ class NotionDocLoader(object):
             # if cursor:
             #     params["start_cursor"] = cursor
             res = httpx.get(url, headers=headers, params=params).json()
-            print(json.dumps(res))
+
             blocks.extend(res.get("results", []))
             has_more = res.get("has_more", False)
             if not has_more:
@@ -439,23 +438,16 @@ class NotionDocLoader(object):
             # app.logger.error("error get content %r", res)
             raise Exception('「企联 AI Notion助手」无该文档访问权限')
             # raise Exception(f'error get content for document')
-        markdown_content = text
-        with NamedTemporaryFile(delete=False) as f:
-            f.write(markdown_content)
-            f.close()
-            # 拿到markdown_content，然后使用markdown loader重新解析一遍真实内容
-            loader = UnstructuredMarkdownLoader(f.name, {})
-            docs = loader.load()
-            os.unlink(f.name)
-            # 这里只有单个文件
-            return Document(
-                page_content='\n'.join([d.page_content for d in docs]),
-                metadata=dict(
-                    fileUrl=self.old_fileurl,
-                    id=self.extract_ids(self.old_fileurl)[0],
-                    title=self.extract_ids(self.old_fileurl)[1],
-                    # 唯一ID，用于区分
-                    uniqid=f"{self.title}-{self.page_id}",
-                    modified=datetime.fromisoformat(res['result']['last_edited_time'].split('.')[0]),
-                )
+        return Document(
+            page_content=text,
+            metadata=dict(
+                fileUrl=self.fileUrl,
+                id=self.extract_ids(self.fileUrl)[0],
+                title=self.extract_ids(self.fileUrl)[1],
+                # 唯一ID，用于区分
+                uniqid=f"{self.title}-{self.page_id}",
+                modified=datetime.fromisoformat(res['result']['last_edited_time'].split('.')[0]),
             )
+        )
+
+

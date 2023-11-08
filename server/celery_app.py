@@ -64,13 +64,13 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
         )
         document_ids.append(document_id)
 
-    elif fileType in ['notiondoc']:
+    elif fileType in ['notion']:
         # notion文件导入
         collection = get_collection_by_id(None, collection_id)
         user = get_user(collection.user_id)
         extra = user.extra.to_dict()
-        client = extra.get('client', {})
-        loader = NotionDocLoader(fileUrl, None, **client)
+        notion = extra.get('notion', {})
+        loader = NotionDocLoader(fileUrl, **client)
         doc = loader.load()
         document_id = embedding_single_document(
             doc, fileUrl, fileType,
