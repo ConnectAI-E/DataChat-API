@@ -351,6 +351,7 @@ class NotionDocLoader(object):
             # print(json.dumps(blocks))
         return blocks
 
+
     # 获取到  block  中  paragraph.rich_text[*].plain_text  的富文本内容
     def get_plain_text_from_rich_text(self, rich_text):
         return "".join([t['plain_text'] for t in rich_text])

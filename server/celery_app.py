@@ -82,6 +82,7 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
         )
         document_ids.append(document_id)
 
+
     elif fileType in ['pdf', 'word', 'excel', 'markdown', 'ppt', 'txt']:
         loader_class, loader_args = LOADER_MAPPING[fileType]
         # 全是文件，需要下载，再加载
