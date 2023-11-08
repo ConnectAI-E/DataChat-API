@@ -70,6 +70,11 @@ celery.conf.beat_schedule = {
         "task": "celery_app.sync_yuque",
         "schedule": timedelta(seconds=3610), # 定时1hours执行一次，避免任务一起执行，占资源
         "args": (False) # 函数传参的值
+    },
+    "sync_notion": {
+        "task": "celery_app.sync_notion",
+        "schedule": timedelta(seconds=3610),  # 定时1hours执行一次，避免任务一起执行，占资源
+        "args": (False)  # 函数传参的值
     }
 }
 
@@ -292,4 +297,4 @@ class YuqueDocLoader(object):
                 )
             )
 
-
+class NotionDocLoader(object):
