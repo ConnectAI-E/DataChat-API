@@ -139,7 +139,7 @@ def sync_yuque(openai=False):
             loader = YuqueDocLoader(document.path, **yuque)
             # 没有版本号，先load一遍，再按时间判断是否重新向量化入库
             doc = loader.load()
-            if doc.metadata.get('modified') > document.modified:
+            if doc.metadata.get('modified') > datetime.fromisoformat(document.modified):
                 document_id = embedding_single_document(
                     doc, document.path, document.type,
                     doc.metadata.get('title'),
