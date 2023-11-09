@@ -51,7 +51,7 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
         user = get_user(collection.user_id)
         extra = user.extra.to_dict()
         yuque = extra.get('yuque', {})
-        loader = YuqueDocLoader(fileUrl, None, **yuque)
+        loader = YuqueDocLoader(fileUrl, **yuque)
         doc = loader.load()
         document_id = embedding_single_document(
             doc, fileUrl, fileType,
