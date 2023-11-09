@@ -248,6 +248,7 @@ class YuqueDocLoader(object):
 
     def __init__(self, fileUrl, **kwargs):
         # https://www.yuque.com/yuque/developer/doc
+        self.fileUrl = fileUrl
         temp = fileUrl.split('?')[0].split('/')
         self.namespace = '/'.join(temp[-3:-1])
         self.slug = temp[-1]
