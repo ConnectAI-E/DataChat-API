@@ -277,7 +277,7 @@ def get_account():
     })
 
 
-@app.route('/api/collection/<platform>', methods=['GET'])
+@app.route('/api/collection/<regex("(client|yuque|notion)"):platform>', methods=['GET'])
 def api_get_collection_client(platform):
     if platform not in ['client', 'yuque', 'notion']:
         raise InternalError('error platform')
