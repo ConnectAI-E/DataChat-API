@@ -262,7 +262,8 @@ class YuqueDocLoader(object):
         #      -d $'{}'
         # GET /repos/:namespace/docs/:slug
         url = f"https://www.yuque.com/api/v2/repos/{self.namespace}/docs/{self.slug}"
-        res = httpx.get(url, headers={'X-Auth-Token': self.config.get('token')}).json()
+        client = httpx.Client(follow_redirects=True)
+        res = client.get(url, headers={'X-Auth-Token': self.config.get('token')}).json()
         if 'data' not in res or 'body' not in res['data']:
             app.logger.error("error get content %r", res)
             raise Exception('「企联 AI 语雀助手」无该文档访问权限')

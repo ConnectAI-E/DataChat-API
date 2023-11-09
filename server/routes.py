@@ -279,12 +279,12 @@ def get_account():
 
 @app.route('/api/collection/<platform>', methods=['GET'])
 def api_get_collection_client(platform):
-    if platform not in ['feishu', 'yuque', 'notion']:
+    if platform not in ['client', 'yuque', 'notion']:
         raise InternalError('error platform')
     user = get_user(session.get('user_id', ''))
     extra = user.extra.to_dict()
     client = extra.get(platform, {})
-    if platform == 'feishu':
+    if platform == 'client':
         callback_url = f'{app.config["SYSTEM_DOMAIN"]}/feishu/{user.openid}'
         client['callback_url'] = {
             'card': callback_url + '/card',
@@ -299,7 +299,7 @@ def api_get_collection_client(platform):
 
 @app.route('/api/collection/<platform>', methods=['POST'])
 def api_save_collection_client(platform):
-    if platform not in ['feishu', 'yuque', 'notion']:
+    if platform not in ['client', 'yuque', 'notion']:
         raise InternalError('error platform')
     app_id = request.json.get('app_id')
     user = get_user(session.get('user_id', ''))
