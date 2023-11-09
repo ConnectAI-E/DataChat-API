@@ -268,12 +268,12 @@ class YuqueDocLoader(object):
             app.logger.error("error get content %r", res)
             raise Exception('「企联 AI 语雀助手」无该文档访问权限')
             # raise Exception(f'error get content for document')
-        markdown_content = res['data']['body']
+        markdown_content = res['data']['body'].encode()
         with NamedTemporaryFile(delete=False) as f:
             f.write(markdown_content)
             f.close()
             # 拿到markdown_content，然后使用markdown loader重新解析一遍真实内容
-            loader = UnstructuredMarkdownLoader(f.name, {})
+            loader = UnstructuredMarkdownLoader(f.name)
             docs = loader.load()
             os.unlink(f.name)
             # 这里只有单个文件
