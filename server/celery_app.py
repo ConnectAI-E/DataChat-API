@@ -1,6 +1,7 @@
 import os
 import logging
 import requests
+from datetime import datetime
 from hashlib import md5
 from langchain.schema import Document
 from models import get_user, get_collection_by_id, Search, purge_document_by_id
