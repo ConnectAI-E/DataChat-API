@@ -41,7 +41,7 @@ from models import (
     get_document_by_id,
     get_relation_count_by_id,
 )
-from celery_app import embed_documents, get_status_by_id
+from celery_app import embed_documents, get_status_by_id, embed_feishuwiki
 from sse import ServerSentEvents
 from tasks import LarkDocLoader, YuqueDocLoader
 
@@ -335,14 +335,56 @@ def api_collections():
     })
 
 
+@app.route('/api/collection/feishu/wiki', methods=['GET'])
+def api_get_feishu_wiki():
+    user_id = session.get('user_id', '')
+    user = get_user(user_id)
+    extra = user.extra.to_dict()
+    client = extra.get('client', {})
+    loader = LarkWikiLoader(space_id, **client)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': list(loader.get_spaces()),
+    })
+
+
 @app.route('/api/collection', methods=['POST'])
 def api_save_collection():
     user_id = session.get('user_id', '')
+    type = request.json.get('type', '')
+    space_id = request.json.get('space_id', '')
     name = request.json.get('name')
     description = request.json.get('description')
-    app.logger.info("debug %r", [name, description])
-    collection_id = save_collection(user_id, name, description)
+    app.logger.info("debug %r", [name, description, type, url])
+    if type == 'feishuwiki':
+        try:
+            user = get_user(user_id)
+            extra = user.extra.to_dict()
+            client = extra.get('client', {})
+            loader = LarkWikiLoader(space_id, **client)
+            info = self.get_info()
+            name = info['data']['space']['name']
+            description = info['data']['space']['description']
+            collection_id = save_collection(user_id, name, description, type=type, space_id=space_id)
+            # 异步支持飞书导入任务
+            task = embed_feishuwiki.delay(collection_id, False)
+            return jsonify({
+                'code': 0,
+                'msg': 'success',
+                'data': {
+                    'id': collection_id,
+                    'collection_id': collection_id,
+                },
+            })
+        except Exception as e:
+            app.logger.error(e)
+            return jsonify({
+                'code': -1,
+                'msg': str(e)
+            })
 
+    collection_id = save_collection(user_id, name, description)
     return jsonify({
         'code': 0,
         'msg': 'success',

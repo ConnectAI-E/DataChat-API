@@ -90,6 +90,9 @@ class Collection(ESDocument):
     name = Text(analyzer='ik_max_word')
     description = Text(analyzer='ik_max_word')  #知识库描述
     summary = Text(analyzer='ik_max_word')  #知识库总结
+    # 飞书导入
+    type = Keyword()    # 知识库类型用keyword保证不分词
+    space_id = Keyword()    # 导入的知识库的space_id
 
     class Index:
         name = 'collection'
@@ -204,7 +207,7 @@ def get_collection_by_id(user_id, collection_id):
         return collection
 
 
-def save_collection(user_id, name, description, collection_id=None):
+def save_collection(user_id, name, description, collection_id=None, type='', space_id=''):
     collection_id = collection_id or ObjID.new_id()
     collection = Collection(
         meta={'id': collection_id},
@@ -212,6 +215,8 @@ def save_collection(user_id, name, description, collection_id=None):
         name=name,
         description=description,
         summary='',
+        type=type,
+        space_id=space_id,
         status=0,
         created=datetime.now(),
         modified=datetime.now(),

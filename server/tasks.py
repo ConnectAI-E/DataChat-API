@@ -176,6 +176,47 @@ class Lark(object):
         return self.request('POST', url, **kwargs)
 
 
+class LarkWikiLoader(object):
+    def __init__(self, space_id, **kwargs):
+        app.logger.info("debug %r", kwargs)
+        self.kwargs = kwargs
+        self.client = Lark(**kwargs)
+        self.space_id = space_id
+
+    def get_info(self):
+        url = f"{self.client.host}/open-apis/wiki/v2/spaces/{self.space_id}"
+        return self.client.get(url).json()
+
+    def get_spaces(self):
+        page_token = ''
+        url = f"{self.client.host}/open-apis/wiki/v2/spaces?page_size=50&page_token={page_token}"
+        res = self.client.get(url).json()
+        while True:
+            for item in res.get('data', {}).get('items', []):
+                yield item
+            if not res.get('data', {}).get('has_more'):
+                break
+            page_token = res['data']['page_token']
+
+    def get_nodes(self):
+        page_token = ''
+        url = f"{self.client.host}/open-apis/wiki/v2/spaces/{self.space_id}/nodes?page_size=50&page_token={page_token}"
+        res = self.client.get(url).json()
+        while True:
+            for item in res.get('data', {}).get('items', []):
+                yield item
+            if not res.get('data', {}).get('has_more'):
+                break
+            page_token = res['data']['page_token']
+
+    def load(self):
+        for node in self.get_nodes():
+            node_id = node['node_token']
+            document_id = node['obj_token']
+            task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
+            loader = LarkDocLoader('https://feishu.cn/wiki/{node_id}', obj_token, **self.kwargs)
+
+
 class LarkDocLoader(object):
     def __init__(self, fileUrl, document_id, **kwargs):
         app.logger.info("debug %r", kwargs)
