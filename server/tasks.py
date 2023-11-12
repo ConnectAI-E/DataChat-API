@@ -209,13 +209,6 @@ class LarkWikiLoader(object):
                 break
             page_token = res['data']['page_token']
 
-    def load(self):
-        for node in self.get_nodes():
-            node_id = node['node_token']
-            document_id = node['obj_token']
-            task = embed_documents.delay(fileUrl, fileType, fileName, collection_id, False, uniqid=uniqid)
-            loader = LarkDocLoader('https://feishu.cn/wiki/{node_id}', obj_token, **self.kwargs)
-
 
 class LarkDocLoader(object):
     def __init__(self, fileUrl, document_id, **kwargs):
