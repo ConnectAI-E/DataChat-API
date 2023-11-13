@@ -4,12 +4,13 @@ import requests
 from datetime import datetime
 from hashlib import md5
 from langchain.schema import Document
-from models import get_user, get_collection_by_id, Search, purge_document_by_id
+from models import get_user, get_collection_by_id, Search, purge_document_by_id, get_document_id_by_uniqid
 from tasks import (
     celery,
     SitemapLoader, LOADER_MAPPING,
     NamedTemporaryFile,
     embedding_single_document, get_status_by_id, embed_query,
+    LarkWikiLoader,
     LarkDocLoader,
     YuqueDocLoader,
 )
@@ -78,6 +79,60 @@ def embed_documents(fileUrl, fileType, fileName, collection_id, openai=False, un
             document_ids.append(document_id)
 
     return document_ids
+
+
+@celery.task()
+def embed_feishuwiki(collection_id, openai=False):
+    # TODO 同步飞书知识库
+    # 1. 获取documents列表
+    # 2. 获取wiki中nodes列表
+    # 3. 对比，然后区分移除或者新增文件，其中新增的添加到知识库，移除的就移除知识库
+    collection = get_collection_by_id(None, collection_id)
+    user = get_user(collection.user_id)
+    extra = user.extra.to_dict()
+    client = extra.get('client', {})
+    loader = LarkWikiLoader(collection.space_id, **client)
+    nodes = loader.get_nodes()
+    current_document_ids = set([node['obj_token'] for node in loader.get_nodes()])
+    logging.info("debug current_document_ids %r", current_document_ids)
+    response = Search(index="document").filter(
+        "term", type="feishudoc"
+    ).filter(
+        "term", status=0,
+    ).filter(
+        "term", collection_id=collection_id,
+    ).extra(
+        from_=0, size=10000
+    ).sort({"modified": {"order": "desc"}}).execute()
+    exists_document_ids = set([doc.uniqid for doc in response])
+    logging.info("debug exists_document_ids %r", exists_document_ids)
+    new_document_ids = current_document_ids - exists_document_ids
+    deleted_document_ids = exists_document_ids - current_document_ids
+    for uniqid in exists_document_ids:
+        try:
+            # 由于是定时任务，可能导致重复插入，检查出现重复的，移除掉
+            document_ids = [doc.meta.id for doc in response if doc.uniqid == uniqid]
+            if len(document_ids) > 1:
+                for document_id in document_ids[:-1]:
+                    purge_document_by_id(document_id)
+        except Exception as e:
+            logging.error(e)
+    for document_id in deleted_document_ids:
+        try:
+            document_ids = get_document_id_by_uniqid(collection_id, document_id)
+            for document_id in document_ids:
+                purge_document_by_id(document_id)
+        except Exception as e:
+            logging.error(e)
+
+    for document_id in new_document_ids:
+        task = embed_documents.delay(
+            'https://feishu.cn/docx/{document_id}',
+            'feishudoc',
+            fileName, collection_id, False, uniqid=document_id
+        )
+        logging.info("debug add new document %r %r", document_id, task)
+    return new_document_ids, exists_document_ids
 
 
 @celery.task()
