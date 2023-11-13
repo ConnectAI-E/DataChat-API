@@ -110,8 +110,9 @@ def embed_feishuwiki(collection_id, openai=False):
     deleted_document_ids = exists_document_ids - current_document_ids
     for document_id in deleted_document_ids:
         try:
-            document_id = get_document_id_by_uniqid(collection_id, document_id)
-            purge_document_by_id(document_id[0])
+            document_ids = get_document_id_by_uniqid(collection_id, document_id)
+            for document_id in document_ids:
+                purge_document_by_id(document_id)
         except Exception as e:
             logging.error(e)
 

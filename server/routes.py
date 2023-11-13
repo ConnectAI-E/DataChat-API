@@ -317,15 +317,17 @@ def api_save_collection_client(platform):
 def api_collections():
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    keyword = request.args.get('keyword', default='', type=str)
     size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
-    collections, total = get_collections(user_id, page, size)
+    collections, total = get_collections(user_id, keyword, page, size)
 
     return jsonify({
         'code': 0,
         'msg': 'success',
         'data': [{
             'id': collection.meta.id,
+            'type': collection.type if hasattr(collection, 'type') else '',
             'name': collection.name,
             'description': collection.description,
             'document_count': get_relation_count_by_id("document", collection_id=collection.meta.id, status=0),
@@ -441,9 +443,10 @@ def api_delete_collection_by_id(collection_id):
 def api_get_documents_by_collection_id(collection_id):
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    keyword = request.args.get('keyword', default='', type=str)
     size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
-    documents, total = get_documents_by_collection_id(user_id, collection_id, page, size)
+    documents, total = get_documents_by_collection_id(user_id, collection_id, keyword, page, size)
 
     return jsonify({
         'code': 0,

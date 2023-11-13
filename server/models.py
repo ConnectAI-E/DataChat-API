@@ -181,12 +181,14 @@ def save_user(openid='', name='', **kwargs):
         return user
 
 
-def get_collections(user_id, page, size):
+def get_collections(user_id, keyword, page, size):
     s = Search(index="collection").filter(
         "term", user_id=user_id,
     ).filter(
         "term", status=0,
     ).extra(from_=page*size-size, size=size)
+    if keyword:
+        s = s.query("match", name=keyword)
     # 执行查询
     response = s.execute()
     total = response.hits.total.value
@@ -271,13 +273,15 @@ def get_document_id_by_uniqid(collection_id, uniqid):
         return None  # 这里不抛出异常
         # raise NotFound()
     # 这里的格式是需要数组
-    return [response[0].meta.id]
+    return [i.meta.id for i in response]
 
 
-def get_documents_by_collection_id(user_id, collection_id, page, size):
+def get_documents_by_collection_id(user_id, collection_id, keyword, page, size):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
     s = Search(index="document").filter("term", collection_id=collection_id).filter("term", status=0).extra(from_=page*size-size, size=size).sort({"created": {"order": "desc"}})
+    if keyword:
+        s = s.query("match", name=keyword)
     response = s.execute()
     total = response.hits.total.value
     # 返回搜索结果（文档实例的列表）
