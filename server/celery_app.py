@@ -4,7 +4,7 @@ import requests
 from datetime import datetime
 from hashlib import md5
 from langchain.schema import Document
-from models import get_user, get_collection_by_id, Search, purge_document_by_id
+from models import get_user, get_collection_by_id, Search, purge_document_by_id, get_document_id_by_uniqid
 from tasks import (
     celery,
     SitemapLoader, LOADER_MAPPING,
@@ -109,7 +109,11 @@ def embed_feishuwiki(collection_id, openai=False):
     new_document_ids = current_document_ids - exists_document_ids
     deleted_document_ids = exists_document_ids - current_document_ids
     for document_id in deleted_document_ids:
-        purge_document_by_id(document_id)
+        try:
+            document_id = get_document_id_by_uniqid(collection_id, document_id)
+            purge_document_by_id(document_id[0])
+        except Exception as e:
+            logging.error(e)
 
     for document_id in new_document_ids:
         task = embed_documents.delay(
