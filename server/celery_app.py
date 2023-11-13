@@ -113,7 +113,7 @@ def embed_feishuwiki(collection_id, openai=False):
             # 由于是定时任务，可能导致重复插入，检查出现重复的，移除掉
             document_ids = [doc.meta.id for doc in response if doc.uniqid == uniqid]
             if len(document_ids) > 1:
-                for document_id in document_ids[:-1]
+                for document_id in document_ids[:-1]:
                     purge_document_by_id(document_id)
         except Exception as e:
             logging.error(e)
