@@ -108,6 +108,15 @@ def embed_feishuwiki(collection_id, openai=False):
     logging.info("debug exists_document_ids %r", exists_document_ids)
     new_document_ids = current_document_ids - exists_document_ids
     deleted_document_ids = exists_document_ids - current_document_ids
+    for uniqid in exists_document_ids:
+        try:
+            # 由于是定时任务，可能导致重复插入，检查出现重复的，移除掉
+            document_ids = [doc.meta.id for doc in response if doc.uniqid == uniqid]
+            if len(document_ids) > 1:
+                for document_id in document_ids[:-1]
+                    purge_document_by_id(document_id)
+        except Exception as e:
+            logging.error(e)
     for document_id in deleted_document_ids:
         try:
             document_ids = get_document_id_by_uniqid(collection_id, document_id)
