@@ -327,7 +327,6 @@ def api_collections():
         'msg': 'success',
         'data': [{
             'id': collection.meta.id,
-            'type': collection.type if hasattr(collection, 'type') else '',
             'name': collection.name,
             'description': collection.description,
             'document_count': get_relation_count_by_id("document", collection_id=collection.meta.id, status=0),
@@ -408,6 +407,7 @@ def api_collection_by_id(collection_id):
         'msg': 'success',
         'data': {
             'id': collection.meta.id,
+            'type': collection.type if hasattr(collection, 'type') else '',
             'name': collection.name,
             'description': collection.description,
             'created': collection.created_at,
