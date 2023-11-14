@@ -43,7 +43,7 @@ from models import (
 )
 from celery_app import embed_documents, get_status_by_id, embed_feishuwiki
 from sse import ServerSentEvents
-from tasks import LarkDocLoader, YuqueDocLoader
+from tasks import LarkDocLoader, YuqueDocLoader, LarkWikiLoader
 
 
 class InternalError(Exception): pass
