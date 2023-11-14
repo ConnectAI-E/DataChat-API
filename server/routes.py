@@ -342,7 +342,7 @@ def api_get_feishu_wiki():
     user = get_user(user_id)
     extra = user.extra.to_dict()
     client = extra.get('client', {})
-    loader = LarkWikiLoader(space_id, **client)
+    loader = LarkWikiLoader('', **client)
     return jsonify({
         'code': 0,
         'msg': 'success',
