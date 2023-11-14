@@ -357,14 +357,14 @@ def api_save_collection():
     space_id = request.json.get('space_id', '')
     name = request.json.get('name')
     description = request.json.get('description')
-    app.logger.info("debug %r", [name, description, type, url])
+    app.logger.info("debug %r", [name, description, type, space_id])
     if type == 'feishuwiki':
         try:
             user = get_user(user_id)
             extra = user.extra.to_dict()
             client = extra.get('client', {})
             loader = LarkWikiLoader(space_id, **client)
-            info = self.get_info()
+            info = loader.get_info()
             name = info['data']['space']['name']
             description = info['data']['space']['description']
             collection_id = save_collection(user_id, name, description, type=type, space_id=space_id)
