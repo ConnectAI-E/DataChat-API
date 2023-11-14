@@ -1,4 +1,6 @@
 import os
+from urllib.parse import urlparse
+
 import httpx
 from functools import cached_property
 from tempfile import NamedTemporaryFile
@@ -68,8 +70,13 @@ celery.conf.beat_schedule = {
     },
     "sync_yuque": {
         "task": "celery_app.sync_yuque",
-        "schedule": timedelta(seconds=3610), # 定时1hours执行一次，避免任务一起执行，占资源
+        "schedule": timedelta(seconds=3700), # 定时1hours执行一次，避免任务一起执行，占资源
         "args": (False) # 函数传参的值
+    },
+    "sync_notion": {
+        "task": "celery_app.sync_notion",
+        "schedule": timedelta(seconds=3800),  # 定时1hours执行一次，避免任务一起执行，占资源
+        "args": (False)  # 函数传参的值
     }
 }
 
@@ -281,6 +288,7 @@ class LarkDocLoader(object):
 class YuqueDocLoader(object):
 
     def __init__(self, fileUrl, **kwargs):
+        self.fileUrl = fileUrl
         # https://www.yuque.com/yuque/developer/doc
         self.fileUrl = fileUrl
         temp = fileUrl.split('?')[0].split('/')
@@ -327,5 +335,156 @@ class YuqueDocLoader(object):
                     modified=datetime.fromisoformat(res['data']['content_updated_at'].split('.')[0]),
                 )
             )
+
+class NotionDocLoader(object):
+
+    def __init__(self, fileUrl, **kwargs):
+        # https://www.notion.so/b1-8beaa48d081e44e69000cd789726a151?pvs=4
+        # https://www.notion.so/b1-8beaa48d081e44e69000cd789726a151
+        self.fileUrl = fileUrl
+        self.page_id, self.title = self.extract_ids(fileUrl)[0], self.extract_ids(fileUrl)[1]
+        self.config = kwargs
+
+    # notion文档的标题在链接里面，id也需要加入分号分割，需要单独做一个操作
+    def extract_ids(self, link):
+        # 解析URL
+        parsed_url = urlparse(link)
+        # 从URL的路径中提取ID
+        path = parsed_url.path
+        parts = path.split('/')
+        ids = parts[-1]
+        # 获取后32位
+        id = ids[-32:-24] + '-' + ids[-24:-20] + '-' + ids[-20:-16] + '-' + ids[-16:-12] + '-' + ids[-12:]
+        title = ids[:-33]
+        return id, title
+
+    def retrieve_block_children(self):
+        """
+            这里的  url  是接受处理过的id号拼接为的接口地址
+        """
+        url = f"https://api.notion.com/v1/blocks/{self.page_id}/children"
+
+        # notion的版本可能会有更新的问题
+        headers = {
+            "Authorization": self.config.get('token'),
+            "Notion-Version": '2022-06-28'
+        }
+
+
+        blocks = []
+        cursor = None
+        while True:
+            params = {}
+            # if cursor:
+            #     params["start_cursor"] = cursor
+            res = httpx.get(url, headers=headers, params=params).json()
+
+            blocks.extend(res.get("results", []))
+            has_more = res.get("has_more", False)
+            if not has_more:
+                break
+            cursor = res.get("next_cursor")
+            # print(json.dumps(blocks))
+        return blocks
+
+
+    # 获取到  block  中  paragraph.rich_text[*].plain_text  的富文本内容
+    def get_plain_text_from_rich_text(self, rich_text):
+        return "".join([t['plain_text'] for t in rich_text])
+
+    def get_text_from_block(self, block):
+        text = ""
+        # 这里加异常处理原因是，获取到的content中不一定有 block[block['type']]['rich_text']
+        block = block[0]
+        try:
+            if block[block['type']]['rich_text']:
+                text = self.get_plain_text_from_rich_text(block[block['type']]['rich_text'])
+        except:
+            block_type = block['type']
+            if block_type == "unsupported":
+                text = "[Unsupported block type]"
+
+            elif block_type == "bookmark":
+                text = block['bookmark']['url']
+
+            elif block_type == "child_database":
+                text = block['child_database']['title']
+
+            elif block_type == "child_page":
+                text = block['child_page']['title']
+
+            # elif block_type in ["embed", "video", "file", "image", "pdf"]:
+            #     text = get_media_source_text(block)
+
+            elif block_type == "equation":
+                text = block['equation']['expression']
+
+            elif block_type == "link_preview":
+                text = block['link_preview']['url']
+
+            elif block_type == "synced_block":
+                if 'synced_from' in block['synced_block']:
+                    synced_with_block = block['synced_block']['synced_from']
+                    text = f"This block is synced with a block with the following ID: {synced_with_block[synced_with_block['type']]}"
+                else:
+                    text = "Source sync block that another blocked is synced with."
+
+            elif block_type == "table":
+                text = f"Table width: {block['table']['table_width']}"
+
+            elif block_type == "table_of_contents":
+                text = f"ToC color: {block['table_of_contents']['color']}"
+
+            elif block_type in ["breadcrumb", "column_list", "divider"]:
+                text = "No text available"
+
+            else:
+                text = "[Needs case added]"
+
+        string_data = f"{block['type']}: {text}"
+        # 使用冒号分割字符串
+        key, value = string_data.split(':')
+        # 创建字典
+        my_dict = {key.strip(): value.strip()}
+
+        # 只返回正文的内容
+        if 'paragraph' in my_dict and my_dict['paragraph'] != '':
+            return my_dict['paragraph']
+        else:
+            return ''
+
+        # return f"{block['type']}: {text}"
+
+    def load(self):
+        url = f"https://api.notion.com/v1/blocks/{self.page_id}/children"
+
+        blocks, cursor = [], None
+        headers = {
+            "Authorization": self.config.get('token'),
+            "Notion-Version": '2022-06-28'
+        }
+        params = {}
+        if cursor:
+            params["start_cursor"] = cursor
+            res = httpx.get(url, headers=headers,params=params).json()
+        blocks.extend(res.get("results", []))
+
+        text = self.get_text_from_block(blocks)
+
+        if res['results'] == '':
+            # app.logger.error("error get content %r", res)
+            raise Exception('「企联 AI Notion助手」无该文档访问权限')
+            # raise Exception(f'error get content for document')
+        return Document(
+            page_content=text,
+            metadata=dict(
+                fileUrl=self.fileUrl,
+                id=self.extract_ids(self.fileUrl)[0],
+                title=self.extract_ids(self.fileUrl)[1],
+                # 唯一ID，用于区分
+                uniqid=f"{self.title}-{self.page_id}",
+                modified=datetime.fromisoformat(res['result']['last_edited_time'].split('.')[0]),
+            )
+        )
 
 
