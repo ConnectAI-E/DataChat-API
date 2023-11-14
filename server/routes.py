@@ -41,9 +41,9 @@ from models import (
     get_document_by_id,
     get_relation_count_by_id,
 )
-from celery_app import embed_documents, get_status_by_id
+from celery_app import embed_documents, get_status_by_id, embed_feishuwiki
 from sse import ServerSentEvents
-from tasks import LarkDocLoader, YuqueDocLoader, NotionDocLoader
+from tasks import LarkDocLoader, YuqueDocLoader, NotionDocLoader, LarkWikiLoader
 
 
 class InternalError(Exception): pass
@@ -277,14 +277,14 @@ def get_account():
     })
 
 
-@app.route('/api/collection/<platform>', methods=['GET'])
+@app.route('/api/collection/<regex("(client|yuque|notion)"):platform>', methods=['GET'])
 def api_get_collection_client(platform):
-    if platform not in ['feishu', 'yuque', 'notion']:
+    if platform not in ['client', 'yuque', 'notion']:
         raise InternalError('error platform')
     user = get_user(session.get('user_id', ''))
     extra = user.extra.to_dict()
     client = extra.get(platform, {})
-    if platform == 'feishu':
+    if platform == 'client':
         callback_url = f'{app.config["SYSTEM_DOMAIN"]}/feishu/{user.openid}'
         client['callback_url'] = {
             'card': callback_url + '/card',
@@ -299,7 +299,7 @@ def api_get_collection_client(platform):
 
 @app.route('/api/collection/<platform>', methods=['POST'])
 def api_save_collection_client(platform):
-    if platform not in ['feishu', 'yuque', 'notion']:
+    if platform not in ['client', 'yuque', 'notion']:
         raise InternalError('error platform')
     app_id = request.json.get('app_id')
     user = get_user(session.get('user_id', ''))
@@ -317,9 +317,10 @@ def api_save_collection_client(platform):
 def api_collections():
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    keyword = request.args.get('keyword', default='', type=str)
     size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
-    collections, total = get_collections(user_id, page, size)
+    collections, total = get_collections(user_id, keyword, page, size)
 
     return jsonify({
         'code': 0,
@@ -335,14 +336,56 @@ def api_collections():
     })
 
 
+@app.route('/api/collection/feishu/wiki', methods=['GET'])
+def api_get_feishu_wiki():
+    user_id = session.get('user_id', '')
+    user = get_user(user_id)
+    extra = user.extra.to_dict()
+    client = extra.get('client', {})
+    loader = LarkWikiLoader('', **client)
+    return jsonify({
+        'code': 0,
+        'msg': 'success',
+        'data': list(loader.get_spaces()),
+    })
+
+
 @app.route('/api/collection', methods=['POST'])
 def api_save_collection():
     user_id = session.get('user_id', '')
+    type = request.json.get('type', '')
+    space_id = request.json.get('space_id', '')
     name = request.json.get('name')
     description = request.json.get('description')
-    app.logger.info("debug %r", [name, description])
-    collection_id = save_collection(user_id, name, description)
+    app.logger.info("debug %r", [name, description, type, space_id])
+    if type == 'feishuwiki':
+        try:
+            user = get_user(user_id)
+            extra = user.extra.to_dict()
+            client = extra.get('client', {})
+            loader = LarkWikiLoader(space_id, **client)
+            info = loader.get_info()
+            name = info['data']['space']['name']
+            description = info['data']['space']['description']
+            collection_id = save_collection(user_id, name, description, type=type, space_id=space_id)
+            # 异步支持飞书导入任务
+            task = embed_feishuwiki.delay(collection_id, False)
+            return jsonify({
+                'code': 0,
+                'msg': 'success',
+                'data': {
+                    'id': collection_id,
+                    'collection_id': collection_id,
+                },
+            })
+        except Exception as e:
+            app.logger.error(e)
+            return jsonify({
+                'code': -1,
+                'msg': str(e)
+            })
 
+    collection_id = save_collection(user_id, name, description)
     return jsonify({
         'code': 0,
         'msg': 'success',
@@ -364,6 +407,7 @@ def api_collection_by_id(collection_id):
         'msg': 'success',
         'data': {
             'id': collection.meta.id,
+            'type': collection.type if hasattr(collection, 'type') else '',
             'name': collection.name,
             'description': collection.description,
             'created': collection.created_at,
@@ -399,9 +443,10 @@ def api_delete_collection_by_id(collection_id):
 def api_get_documents_by_collection_id(collection_id):
     page = request.args.get('page', default=1, type=int)
     size = request.args.get('size', default=20, type=int)
+    keyword = request.args.get('keyword', default='', type=str)
     size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
-    documents, total = get_documents_by_collection_id(user_id, collection_id, page, size)
+    documents, total = get_documents_by_collection_id(user_id, collection_id, keyword, page, size)
 
     return jsonify({
         'code': 0,

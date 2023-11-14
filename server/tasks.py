@@ -183,6 +183,40 @@ class Lark(object):
         return self.request('POST', url, **kwargs)
 
 
+class LarkWikiLoader(object):
+    def __init__(self, space_id, **kwargs):
+        app.logger.info("debug %r", kwargs)
+        self.kwargs = kwargs
+        self.client = Lark(**kwargs)
+        self.space_id = space_id
+
+    def get_info(self):
+        url = f"{self.client.host}/open-apis/wiki/v2/spaces/{self.space_id}"
+        return self.client.get(url).json()
+
+    def get_spaces(self):
+        page_token = ''
+        url = f"{self.client.host}/open-apis/wiki/v2/spaces?page_size=50&page_token={page_token}"
+        res = self.client.get(url).json()
+        while True:
+            for item in res.get('data', {}).get('items', []):
+                yield item
+            if not res.get('data', {}).get('has_more'):
+                break
+            page_token = res['data']['page_token']
+
+    def get_nodes(self):
+        page_token = ''
+        url = f"{self.client.host}/open-apis/wiki/v2/spaces/{self.space_id}/nodes?page_size=50&page_token={page_token}"
+        res = self.client.get(url).json()
+        while True:
+            for item in res.get('data', {}).get('items', []):
+                yield item
+            if not res.get('data', {}).get('has_more'):
+                break
+            page_token = res['data']['page_token']
+
+
 class LarkDocLoader(object):
     def __init__(self, fileUrl, document_id, **kwargs):
         app.logger.info("debug %r", kwargs)
@@ -256,6 +290,7 @@ class YuqueDocLoader(object):
     def __init__(self, fileUrl, **kwargs):
         self.fileUrl = fileUrl
         # https://www.yuque.com/yuque/developer/doc
+        self.fileUrl = fileUrl
         temp = fileUrl.split('?')[0].split('/')
         self.namespace = '/'.join(temp[-3:-1])
         self.slug = temp[-1]
@@ -270,17 +305,18 @@ class YuqueDocLoader(object):
         #      -d $'{}'
         # GET /repos/:namespace/docs/:slug
         url = f"https://www.yuque.com/api/v2/repos/{self.namespace}/docs/{self.slug}"
-        res = httpx.get(url, headers={'X-Auth-Token': self.config.get('token')}).json()
+        client = httpx.Client(follow_redirects=True)
+        res = client.get(url, headers={'X-Auth-Token': self.config.get('token')}).json()
         if 'data' not in res or 'body' not in res['data']:
             app.logger.error("error get content %r", res)
             raise Exception('「企联 AI 语雀助手」无该文档访问权限')
             # raise Exception(f'error get content for document')
-        markdown_content = res['data']['body']
+        markdown_content = res['data']['body'].encode()
         with NamedTemporaryFile(delete=False) as f:
             f.write(markdown_content)
             f.close()
             # 拿到markdown_content，然后使用markdown loader重新解析一遍真实内容
-            loader = UnstructuredMarkdownLoader(f.name, {})
+            loader = UnstructuredMarkdownLoader(f.name)
             docs = loader.load()
             os.unlink(f.name)
             # 这里只有单个文件
