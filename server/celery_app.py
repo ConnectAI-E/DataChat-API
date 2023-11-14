@@ -153,7 +153,7 @@ def embed_feishuwiki(collection_id, openai=False):
             '', collection_id, False, uniqid=document_id
         )
         logging.info("debug add new document %r %r", document_id, task)
-    return new_document_ids, exists_document_ids
+    return list(new_document_ids), list(exists_document_ids)
 
 
 @celery.task()
