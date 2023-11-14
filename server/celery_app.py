@@ -148,7 +148,7 @@ def embed_feishuwiki(collection_id, openai=False):
 
     for document_id in new_document_ids:
         task = embed_documents.delay(
-            'https://feishu.cn/docx/{document_id}',
+            f'https://feishu.cn/docx/{document_id}',
             'feishudoc',
             '', collection_id, False, uniqid=document_id
         )
