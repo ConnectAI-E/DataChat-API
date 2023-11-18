@@ -157,6 +157,25 @@ def embed_feishuwiki(collection_id, openai=False):
 
 
 @celery.task()
+def sync_feishuwiki(openai=False):
+    collection_ids = []
+    response = Search(index="collection").filter(
+        "term", type="feishuwiki"
+    ).filter(
+        "term", status=0,
+    ).extra(
+        from_=0, size=10000
+    ).sort({"modified": {"order": "desc"}}).execute()
+    total = response.hits.total.value
+    logging.info("debug sync_feishuwiki %r", total)
+    for collection in response:
+        collection_ids.append(collection.meta.id)
+        task = embed_feishuwiki.delay(collection.meta.id, openai)
+        logging.info("debug sync_feishuwiki collection %r %r", collection.meta.id, task)
+    return collection_ids
+
+
+@celery.task()
 def sync_feishudoc(openai=False):
     document_ids = []
     response = Search(index="document").filter(

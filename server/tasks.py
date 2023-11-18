@@ -68,6 +68,11 @@ celery.conf.beat_schedule = {
         # 使用的是crontab表达式
         "args": (False) # 函数传参的值
     },
+    "sync_feishuwiki": {
+        "task": "celery_app.sync_feishuwiki",
+        "schedule": timedelta(seconds=3900), # 定时1hours执行一次，避免任务一起执行，占资源
+        "args": (False) # 函数传参的值
+    },
     "sync_yuque": {
         "task": "celery_app.sync_yuque",
         "schedule": timedelta(seconds=3700), # 定时1hours执行一次，避免任务一起执行，占资源
