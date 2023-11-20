@@ -582,7 +582,7 @@ def api_query_by_collection_id(collection_id):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到知识库或者没有权限'
 
-    documents, total = query_by_collection_id(collection_id, q, page, size)
+    documents, total = query_by_collection_id(collection_id.split(','), q, page, size)
 
     app.logger.info("%r %r", documents, total)
     return jsonify({

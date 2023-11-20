@@ -401,8 +401,9 @@ def get_bot_by_hash(hash):
 def query_by_collection_id(collection_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
+    # collection_id支持传数组或者字符串，使用数组的时候，表示跨知识库查询
     filter_ = [{
-        "term": { "collection_id": collection_id },
+        "terms": { "collection_id": collection_id if isinstance(collection_id, list) else [collection_id] },
     }, {
         "term": { "status": 0 },
     }]
