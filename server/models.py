@@ -467,11 +467,13 @@ def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
         match = match[0].value if len(match) > 0 else 0
         min = match if match < min else min
         max = match if match > max else max
-        explanation.append({
-            'id': i.meta.id,
-            'topk': topk,
-            'match': match,
-        })
+        # 只需要有匹配的，没有任何匹配，就认为完全无关
+        if match > 0:
+            explanation.append({
+                'id': i.meta.id,
+                'topk': topk,
+                'match': match,
+            })
 
     for exp in explanation:
         exp['stand_score'] = (exp['match'] - min) / ((max - min) or 1)
