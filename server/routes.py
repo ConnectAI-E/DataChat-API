@@ -579,8 +579,11 @@ def api_query_by_collection_id(collection_id):
     size = request.args.get('size', default=20, type=int)
     size = 10000 if size > 10000 else size
     user_id = session.get('user_id', '')
-    collection = get_collection_by_id(user_id, collection_id)
-    assert collection, '找不到知识库或者没有权限'
+    # using array
+    collection_id = collection_id.split(',')
+    for cid in collection_id:
+        collection = get_collection_by_id(user_id, cid)
+        assert collection, '找不到知识库或者没有权限'
 
     documents, total = query_by_collection_id(collection_id, q, page, size)
 

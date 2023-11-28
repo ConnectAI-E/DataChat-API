@@ -401,8 +401,9 @@ def get_bot_by_hash(hash):
 def query_by_collection_id(collection_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
+    # collection_id支持传数组或者字符串，使用数组的时候，表示跨知识库查询
     filter_ = [{
-        "term": { "collection_id": collection_id },
+        "terms": { "collection_id": collection_id if isinstance(collection_id, list) else [collection_id] },
     }, {
         "term": { "status": 0 },
     }]
@@ -466,11 +467,13 @@ def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
         match = match[0].value if len(match) > 0 else 0
         min = match if match < min else min
         max = match if match > max else max
-        explanation.append({
-            'id': i.meta.id,
-            'topk': topk,
-            'match': match,
-        })
+        # 只需要有匹配的，没有任何匹配，就认为完全无关
+        if match > 0:
+            explanation.append({
+                'id': i.meta.id,
+                'topk': topk,
+                'match': match,
+            })
 
     for exp in explanation:
         exp['stand_score'] = (exp['match'] - min) / ((max - min) or 1)
