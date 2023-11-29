@@ -156,7 +156,9 @@ def save_user(openid='', name='', **kwargs):
     response = s.execute()
     if not response.hits.total.value :
         user = User(
-            meta={'id': ObjID.new_id()},
+            # meta={'id': ObjID.new_id()},
+            # TODO 这里尝试直接使用openid，就不至于出现重复创建的问题
+            meta={'id': openid},
             openid=openid,
             name=name,
             status = 0,
