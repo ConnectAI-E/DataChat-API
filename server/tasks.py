@@ -210,13 +210,16 @@ class LarkWikiLoader(object):
                 break
             page_token = res['data']['page_token']
 
-    def get_nodes(self):
+    def get_nodes(self, parent_node_token=''):
         page_token = ''
-        url = f"{self.client.host}/open-apis/wiki/v2/spaces/{self.space_id}/nodes?page_size=50&page_token={page_token}"
-        res = self.client.get(url).json()
         while True:
+            url = f"{self.client.host}/open-apis/wiki/v2/spaces/{self.space_id}/nodes?page_size=50&page_token={page_token}&parent_node_token={parent_node_token}"
+            res = self.client.get(url).json()
             for item in res.get('data', {}).get('items', []):
                 yield item
+                if item['has_child']:
+                    for child_item in self.get_nodes(parent_node_token=item['node_token']):
+                        yield child_item
             if not res.get('data', {}).get('has_more'):
                 break
             page_token = res['data']['page_token']
