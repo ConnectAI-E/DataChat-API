@@ -90,6 +90,9 @@ class Collection(ESDocument):
     name = Text(analyzer='ik_max_word')
     description = Text(analyzer='ik_max_word')  #知识库描述
     summary = Text(analyzer='ik_max_word')  #知识库总结
+    # 飞书导入
+    type = Keyword()    # 知识库类型用keyword保证不分词
+    space_id = Keyword()    # 导入的知识库的space_id
 
     class Index:
         name = 'collection'
@@ -153,7 +156,9 @@ def save_user(openid='', name='', **kwargs):
     response = s.execute()
     if not response.hits.total.value :
         user = User(
-            meta={'id': ObjID.new_id()},
+            # meta={'id': ObjID.new_id()},
+            # TODO 这里尝试直接使用openid，就不至于出现重复创建的问题
+            meta={'id': openid},
             openid=openid,
             name=name,
             status = 0,
@@ -178,12 +183,14 @@ def save_user(openid='', name='', **kwargs):
         return user
 
 
-def get_collections(user_id, page, size):
+def get_collections(user_id, keyword, page, size):
     s = Search(index="collection").filter(
         "term", user_id=user_id,
     ).filter(
         "term", status=0,
     ).extra(from_=page*size-size, size=size)
+    if keyword:
+        s = s.query("match", name=keyword)
     # 执行查询
     response = s.execute()
     total = response.hits.total.value
@@ -204,7 +211,7 @@ def get_collection_by_id(user_id, collection_id):
         return collection
 
 
-def save_collection(user_id, name, description, collection_id=None):
+def save_collection(user_id, name, description, collection_id=None, type='', space_id=''):
     collection_id = collection_id or ObjID.new_id()
     collection = Collection(
         meta={'id': collection_id},
@@ -212,6 +219,8 @@ def save_collection(user_id, name, description, collection_id=None):
         name=name,
         description=description,
         summary='',
+        type=type,
+        space_id=space_id,
         status=0,
         created=datetime.now(),
         modified=datetime.now(),
@@ -266,13 +275,15 @@ def get_document_id_by_uniqid(collection_id, uniqid):
         return None  # 这里不抛出异常
         # raise NotFound()
     # 这里的格式是需要数组
-    return [response[0].meta.id]
+    return [i.meta.id for i in response]
 
 
-def get_documents_by_collection_id(user_id, collection_id, page, size):
+def get_documents_by_collection_id(user_id, collection_id, keyword, page, size):
     collection = get_collection_by_id(user_id, collection_id)
     assert collection, '找不到对应知识库'
     s = Search(index="document").filter("term", collection_id=collection_id).filter("term", status=0).extra(from_=page*size-size, size=size).sort({"created": {"order": "desc"}})
+    if keyword:
+        s = s.query("match", name=keyword)
     response = s.execute()
     total = response.hits.total.value
     # 返回搜索结果（文档实例的列表）
@@ -392,8 +403,9 @@ def get_bot_by_hash(hash):
 def query_by_collection_id(collection_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
+    # collection_id支持传数组或者字符串，使用数组的时候，表示跨知识库查询
     filter_ = [{
-        "term": { "collection_id": collection_id },
+        "terms": { "collection_id": collection_id if isinstance(collection_id, list) else [collection_id] },
     }, {
         "term": { "status": 0 },
     }]
@@ -457,11 +469,13 @@ def _query_by_filter_and_embed(q, filter_, embed, page, size, delta=0.5):
         match = match[0].value if len(match) > 0 else 0
         min = match if match < min else min
         max = match if match > max else max
-        explanation.append({
-            'id': i.meta.id,
-            'topk': topk,
-            'match': match,
-        })
+        # 只需要有匹配的，没有任何匹配，就认为完全无关
+        if match > 0:
+            explanation.append({
+                'id': i.meta.id,
+                'topk': topk,
+                'match': match,
+            })
 
     for exp in explanation:
         exp['stand_score'] = (exp['match'] - min) / ((max - min) or 1)

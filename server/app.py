@@ -6,10 +6,18 @@ from flask_session import Session, RedisSessionInterface
 from itsdangerous import BadSignature, want_bytes
 from flask_cors import CORS
 from flasgger import Swagger
+from werkzeug.routing import BaseConverter
 
 
 app = Flask(__name__)
 
+class RegexConverter(BaseConverter):
+    def __init__(self, url_map, *items):
+        super(RegexConverter, self).__init__(url_map)
+        self.regex = items[0]
+
+
+app.url_map.converters['regex'] = RegexConverter
 app.config["SESSION_TYPE"] = 'redis'  # 指定session存储的类型
 app.config["SESSION_REDIS"] = redis.Redis(host="redis", port=6379)  # 创建redis连接
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=86400)  # 执行session的有效时间
