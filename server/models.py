@@ -402,8 +402,6 @@ def query_by_collection_id(collection_id, q, page, size, delta=None):
     app.logger.info('query ids: %r %r', collection_ids, document_ids)
     # collection_id支持传数组或者字符串，使用数组的时候，表示跨知识库查询
     filter_ = [{
-        "terms": { "collection_id": collection_ids },
-    }, {
         "terms": { "document_id": document_ids },
     }, {
         "term": { "status": 0 },
