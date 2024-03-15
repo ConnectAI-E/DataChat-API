@@ -4,9 +4,9 @@ RUN echo "start"
 RUN sed -i "s@http://deb.debian.org@http://mirrors.aliyun.com@g" /etc/apt/sources.list
 RUN sed -i "s@http://security.debian.org@http://mirrors.aliyun.com@g" /etc/apt/sources.list
 
-RUN apt-get update && apt-get install -y libcurl4-openssl-dev libffi-dev libxml2-dev g++\
+RUN apt-get update && apt-get install -y libcurl4-openssl-dev libffi-dev libxml2-dev g++ libreoffice \
   && pip3 install torch==2.0.1+cpu torchvision==0.15.2+cpu -f https://download.pytorch.org/whl/torch_stable.html  -i https://pypi.tuna.tsinghua.edu.cn/simple \
-  && pip3 install requests Flask gunicorn gevent bson Flask-Session Flask-SQLAlchemy ujson pycurl bcrypt langchain sentence_transformers pdf2image pytesseract elasticsearch_dsl redis unstructured PyMuPDF bs4 openai==0.28.1 flask[async] Cython flask-cors python-docx python-pptx markdown pandas openpyxl celery -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
+  && pip3 install requests Flask gunicorn gevent bson Flask-Session==0.5.0 Flask-SQLAlchemy ujson pycurl bcrypt langchain sentence_transformers pdf2image pytesseract elasticsearch_dsl redis unstructured PyMuPDF bs4 openai==0.28.1 flask[async] Cython flask-cors python-docx python-pptx markdown pandas openpyxl celery -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn --no-cache-dir
 
 ADD ./docker/entrypoint.sh /entrypoint.sh
 ADD ./docker/wait-for-it.sh /wait-for-it.sh
