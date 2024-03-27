@@ -61,7 +61,7 @@ celery = create_celery_app(app)
 celery.conf.beat_schedule = {
     "sync_feishudoc": {
         "task": "celery_app.sync_feishudoc",
-        "schedule": timedelta(hours=1), # 定时1hours执行一次
+        "schedule": timedelta(seconds=1800), # 定时1hours执行一次
         # "schedule": timedelta(seconds=5), # 定时2hours执行一次
         # "schedule": 10.0, # 每10秒执行一次
         # "schedule": crontab(minute='*/1'), # 定时每分钟执行一次
@@ -70,7 +70,7 @@ celery.conf.beat_schedule = {
     },
     "sync_feishuwiki": {
         "task": "celery_app.sync_feishuwiki",
-        "schedule": timedelta(seconds=3900), # 定时1hours执行一次，避免任务一起执行，占资源
+        "schedule": timedelta(seconds=900), # 定时1hours执行一次，避免任务一起执行，占资源
         "args": (False) # 函数传参的值
     },
     "sync_yuque": {
