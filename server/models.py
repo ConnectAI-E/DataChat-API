@@ -300,6 +300,8 @@ def remove_document_by_id(user_id, collection_id, document_id):
         doc.status=-1
         doc.save(refresh='wait_for')
     embeddings = Search(index='embedding').filter("term", document_id=document_id).execute()
+    # 当同时更新多个embedding时，会有部分数据更新失败，使用 refresh=True 或 .save 都不行
+    # 故后面使用筛选 document_id 的方式查询
     for e in embeddings:
         embedding = Embedding.get(id=e.meta.id)
         embedding.update(status=-1)
@@ -391,21 +393,16 @@ def get_bot_by_hash(hash):
     return bot[0]
 
 
-def get_bot_by_hash(hash):
-    bot = Search(index="bot").filter(
-        "term",
-        hash=hash,
-    ).execute()
-    if bot.hits.total.value == 0:
-        raise NotFound()
-    return bot[0]
-
 def query_by_collection_id(collection_id, q, page, size, delta=None):
     from tasks import embed_query
     embed = embed_query(q)
+    collection_ids = collection_id if isinstance(collection_id, list) else [collection_id]
+    ds = Search(index="document").filter("terms", collection_id=collection_ids).filter("term", status=0)
+    document_ids = [x.meta.id for x in ds]
+    app.logger.info('query ids: %r %r', collection_ids, document_ids)
     # collection_id支持传数组或者字符串，使用数组的时候，表示跨知识库查询
     filter_ = [{
-        "terms": { "collection_id": collection_id if isinstance(collection_id, list) else [collection_id] },
+        "terms": { "document_id": document_ids },
     }, {
         "term": { "status": 0 },
     }]
