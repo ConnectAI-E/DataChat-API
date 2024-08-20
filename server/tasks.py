@@ -25,7 +25,7 @@ from langchain.document_loaders.sitemap import SitemapLoader
 from langchain.schema import Document
 
 
-LARK_HOST = 'https://open.feishu.cn'
+LARK_HOST = app.config.get('LARK_HOST') or 'https://open.feishu.cn'
 
 
 def create_celery_app(app=None):
@@ -148,7 +148,7 @@ def embed_query(text, openai=False):
 
 
 class Lark(object):
-    def __init__(self, app_id=None, secret_key=None, app_secret=None, verification_token=None, validation_token=None, encript_key=None, encrypt_key=None, host=app.config.get('LARK_HOST') or LARK_HOST, **kwargs):
+    def __init__(self, app_id=None, secret_key=None, app_secret=None, verification_token=None, validation_token=None, encript_key=None, encrypt_key=None, host=LARK_HOST, **kwargs):
         self.app_id = app_id
         self.app_secret = app_secret or secret_key
         self.encrypt_key = encrypt_key or encript_key
